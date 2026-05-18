@@ -37,20 +37,6 @@ function saveContent(content) {
   writeJson(CONTENT_FILE, content);
 }
 
-if (req.method === 'POST' && req.url === '/save-content') {
-  const body = await collectBody(req);
-
-  try {
-    const parsed = JSON.parse(body);
-    saveContent(parsed);
-    sendJson(res, 200, { ok: true });
-  } catch {
-    sendJson(res, 400, { ok: false });
-  }
-
-  return;
-}
-
 function getCodes() {
   const fromEnv = (process.env.SITE_CODES || '')
     .split(',')
