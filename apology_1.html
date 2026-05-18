@@ -702,8 +702,19 @@ async function saveDataToStorage() {
       body: JSON.stringify(data)
     });
 
-    return res.ok;
+    const text = await res.text();
+
+    console.log('SAVE STATUS:', res.status);
+    console.log('SAVE RESPONSE:', text);
+
+    if (!res.ok) {
+      alert('Save failed.\n\n' + text);
+      return false;
+    }
+
+    return true;
   } catch(e) {
+    console.error(e);
     alert('Could not save changes.');
     return false;
   }
@@ -744,13 +755,13 @@ function importEditData() {
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const previousData = data;
 
       try {
         const parsed = JSON.parse(reader.result);
         data = normalizeData(parsed && parsed.data ? parsed.data : parsed);
-        if (!saveDataToStorage()) {
+        if (!(await saveDataToStorage())) {
           data = previousData;
           return;
         }
