@@ -289,12 +289,12 @@ function buildSlides() {
       inner += `<div class="img-only">${imgHtml}</div>`;
     } else if (p.layout === 'img-above') {
       if (hasImg) inner += `<div class="img-above">${imgHtml}</div>`;
-      if (hasText) inner += `<p class="para-text">${escHtml(p.text)}</p>`;
+      if (hasText) inner += `<p class="para-text">${escHtmlDisplay(p.text)}</p>`;
     } else if (p.layout === 'img-below') {
-      if (hasText) inner += `<p class="para-text">${escHtml(p.text)}</p>`;
+      if (hasText) inner += `<p class="para-text">${escHtmlDisplay(p.text)}</p>`;
       if (hasImg) inner += `<div class="img-below">${imgHtml}</div>`;
     } else {
-      if (hasText) inner += `<p class="para-text">${escHtml(p.text)}</p>`;
+      if (hasText) inner += `<p class="para-text">${escHtmlDisplay(p.text)}</p>`;
     }
 
     inner += '</div>';
@@ -313,6 +313,13 @@ function buildSlides() {
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+function escHtmlTextarea(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
 }
 
 function escAttr(s) {
@@ -530,7 +537,7 @@ function renderPageList() {
     const textSection = p.layout !== 'img-only' ? `
       <div>
         <span class="el">text</span>
-        <textarea class="ef-area" data-i="${i}" rows="3">${escHtml(p.text || '')}</textarea>
+        <textarea class="ef-area" data-i="${i}" rows="3">${escHtmlTextarea(p.text || '')}</textarea>
       </div>` : '';
 
     card.innerHTML = `
