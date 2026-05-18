@@ -24,14 +24,6 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-if (!fs.existsSync(CONTENT_FILE)) {
-  writeJson(CONTENT_FILE, {
-    name: "Her Name",
-    sig: "— you know who",
-    pages: []
-  });
-}
-
 if (!fs.existsSync(CODES_FILE)) {
   writeJson(CODES_FILE, []);
 }
