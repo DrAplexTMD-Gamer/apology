@@ -240,12 +240,20 @@ const server = http.createServer(async (req, res) => {
   delete state.sessions[token];
   writeJson(STATE_FILE, state);
 
-  servePage(res);
+  fs.readFile(PAGE_FILE, (err, data) => {
+    if (err) {
+      send(res, 500, 'Could not load apology_1.html.');
+      return;
+    }
 
-  res.setHeader(
-    'Set-Cookie',
-    `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`
-  );
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Set-Cookie': `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`
+    });
+
+    res.end(data);
+  });
 
   return;
 }
