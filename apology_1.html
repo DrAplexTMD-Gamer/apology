@@ -289,12 +289,12 @@ function buildSlides() {
       inner += `<div class="img-only">${imgHtml}</div>`;
     } else if (p.layout === 'img-above') {
       if (hasImg) inner += `<div class="img-above">${imgHtml}</div>`;
-      if (hasText) inner += `<p class="para-text">${escHtmlDisplay(p.text)}</p>`;
+      if (hasText) inner += `<p class="para-text">${escHtml(p.text)}</p>`;
     } else if (p.layout === 'img-below') {
-      if (hasText) inner += `<p class="para-text">${escHtmlDisplay(p.text)}</p>`;
+      if (hasText) inner += `<p class="para-text">${escHtml(p.text)}</p>`;
       if (hasImg) inner += `<div class="img-below">${imgHtml}</div>`;
     } else {
-      if (hasText) inner += `<p class="para-text">${escHtmlDisplay(p.text)}</p>`;
+      if (hasText) inner += `<p class="para-text">${escHtml(p.text)}</p>`;
     }
 
     inner += '</div>';
