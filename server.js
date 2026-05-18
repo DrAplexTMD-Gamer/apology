@@ -178,10 +178,26 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/site') {
-      if (!hasSession(req)) redirect(res, '/');
-      else servePage(res);
-      return;
-    }
+  if (!hasSession(req)) {
+    redirect(res, '/');
+    return;
+  }
+
+  const token = parseCookies(req)[SESSION_COOKIE];
+  const state = getState();
+
+  delete state.sessions[token];
+  writeJson(STATE_FILE, state);
+
+  servePage(res);
+
+  res.setHeader(
+    'Set-Cookie',
+    `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`
+  );
+
+  return;
+}
 
     if (req.method === 'POST' && req.url === '/access') {
       const body = await collectBody(req);
