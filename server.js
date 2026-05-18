@@ -194,8 +194,24 @@ function redeemCode(code) {
   const codes = getCodes();
   const state = getState();
 
-  if (!codes.includes(code)) return { ok: false, error: 'invalid code.' };
-  if (state.usedCodes.includes(code)) return { ok: false, error: 'that code has already been used.' };
+  const masterCode = process.env.MASTER_CODE || '';
+
+if (code === masterCode) {
+  const token = crypto.randomBytes(32).toString('base64url');
+
+  state.sessions[token] = { createdAt: new Date().toISOString() };
+  writeJson(STATE_FILE, state);
+
+  return { ok: true, token };
+}
+
+if (!codes.includes(code)) {
+  return { ok: false, error: 'invalid code.' };
+}
+
+if (state.usedCodes.includes(code)) {
+  return { ok: false, error: 'that code has already been used.' };
+}
 
   const token = crypto.randomBytes(32).toString('base64url');
   state.usedCodes.push(code);
