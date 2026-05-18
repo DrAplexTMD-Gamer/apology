@@ -9,6 +9,7 @@ const ROOT = __dirname;
 const PAGE_FILE = path.join(ROOT, 'apology_1.html');
 const CODES_FILE = path.join(ROOT, 'access-codes.json');
 const STATE_FILE = path.join(ROOT, 'access-state.json');
+const CONTENT_FILE = path.join(ROOT, 'content.json');
 const SESSION_COOKIE = 'apology_session';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
@@ -22,6 +23,32 @@ function readJson(file, fallback) {
 
 function writeJson(file, value) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n');
+}
+
+function getContent() {
+  return readJson(CONTENT_FILE, {
+    name: "Her Name",
+    sig: "— you know who",
+    pages: []
+  });
+}
+
+function saveContent(content) {
+  writeJson(CONTENT_FILE, content);
+}
+
+if (req.method === 'POST' && req.url === '/save-content') {
+  const body = await collectBody(req);
+
+  try {
+    const parsed = JSON.parse(body);
+    saveContent(parsed);
+    sendJson(res, 200, { ok: true });
+  } catch {
+    sendJson(res, 400, { ok: false });
+  }
+
+  return;
 }
 
 function getCodes() {

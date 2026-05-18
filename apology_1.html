@@ -218,12 +218,16 @@ const defaultData = {
 
 let data = cloneDefaultData();
 
-try {
-  const s = localStorage.getItem(KEY);
-  if (s) data = normalizeData(JSON.parse(s));
-} catch(e) {
-  data = cloneDefaultData();
-}
+fetch('/content')
+  .then(r => r.json())
+  .then(serverData => {
+    data = normalizeData(serverData);
+    buildSlides();
+  })
+  .catch(() => {
+    data = cloneDefaultData();
+    buildSlides();
+  });
 
 let current = 0;
 let allSlides = [];
@@ -457,7 +461,6 @@ document.getElementById('photo-lightbox').addEventListener('touchend', e => {
   if (Math.abs(dx) < 40) return;
   lightboxGo(dx < 0 ? 1 : -1);
 }, { passive: true });
-buildSlides();
 
 // ── EDIT MODAL ─────────────────────────────────────────────
 function openEdit() {
@@ -689,12 +692,19 @@ function syncEditFieldsIfVisible() {
   syncPageTextFromFields();
 }
 
-function saveDataToStorage() {
+async function saveDataToStorage() {
   try {
-    localStorage.setItem(KEY, JSON.stringify(data));
-    return true;
+    const res = await fetch('/save-content', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+
+    return res.ok;
   } catch(e) {
-    alert('Could not save. Try removing or shrinking one of the photos, then save again.');
+    alert('Could not save changes.');
     return false;
   }
 }
@@ -767,12 +777,12 @@ function importEditData() {
   input.click();
 }
 
-function saveEdit() {
+async function saveEdit() {
   data.name = document.getElementById('e-name').value.trim() || 'Her Name';
   data.sig = document.getElementById('e-sig').value.trim() || '— you know who';
   syncPageTextFromFields();
   data.pages.forEach(p => { p.text = p.text.trim(); });
-  if (!saveDataToStorage()) return;
+  if (!(await saveDataToStorage())) return;
   closeEdit();
   current = 0;
   buildSlides();
