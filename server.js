@@ -3,19 +3,45 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { URLSearchParams } = require('url');
+const { createClient } = require('@supabase/supabase-js');
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = __dirname;
 
+const DATA_ROOT = '/tmp';
+
 const PAGE_FILE = path.join(ROOT, 'apology_1.html');
-const CONTENT_FILE = path.join(ROOT, 'content.json');
-const CODES_FILE = path.join(ROOT, 'access-codes.json');
-const STATE_FILE = path.join(ROOT, 'access-state.json');
+const CONTENT_FILE = path.join(DATA_ROOT, 'content.json');
+const CODES_FILE = path.join(DATA_ROOT, 'access-codes.json');
+const STATE_FILE = path.join(DATA_ROOT, 'access-state.json');
 
 const SESSION_COOKIE = 'apology_session';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const MASTER_CODE = process.env.MASTER_CODE || '';
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
+
+if (!fs.existsSync(CONTENT_FILE)) {
+  writeJson(CONTENT_FILE, {
+    name: "Her Name",
+    sig: "— you know who",
+    pages: []
+  });
+}
+
+if (!fs.existsSync(CODES_FILE)) {
+  writeJson(CODES_FILE, []);
+}
+
+if (!fs.existsSync(STATE_FILE)) {
+  writeJson(STATE_FILE, {
+    usedCodes: [],
+    sessions: {}
+  });
+}
 
 function readJson(file, fallback) {
   try {
@@ -29,16 +55,25 @@ function writeJson(file, value) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n');
 }
 
-function getContent() {
-  return readJson(CONTENT_FILE, {
-    name: "Her Name",
-    sig: "— you know who",
-    pages: []
-  });
+async function getContent() {
+  const { data, error } = await supabase
+    .from('site_content')
+    .select('content')
+    .eq('id', 1)
+    .single();
+
+  if (error) throw error;
+
+  return data.content;
 }
 
-function saveContent(content) {
-  writeJson(CONTENT_FILE, content);
+async function saveContent(content) {
+  const { error } = await supabase
+    .from('site_content')
+    .update({ content })
+    .eq('id', 1);
+
+  if (error) throw error;
 }
 
 function getCodes() {
@@ -425,7 +460,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/content') {
-      sendJson(res, 200, getContent());
+      sendJson(res, 200, await getContent());
       return;
     }
 
@@ -437,7 +472,7 @@ const server = http.createServer(async (req, res) => {
 
       const parsed = JSON.parse(body);
 
-      saveContent(parsed);
+      await saveContent(parsed);
 
       sendJson(res, 200, { ok: true });
 
