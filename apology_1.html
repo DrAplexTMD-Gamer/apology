@@ -216,18 +216,20 @@ const defaultData = {
   ]
 };
 
-let data = cloneDefaultData();
+let data = null;
 
-fetch('/content')
-  .then(r => r.json())
-  .then(serverData => {
+(async () => {
+  try {
+    const r = await fetch('/content');
+    const serverData = await r.json();
+
     data = normalizeData(serverData);
-    buildSlides();
-  })
-  .catch(() => {
+  } catch {
     data = cloneDefaultData();
-    buildSlides();
-  });
+  }
+
+  buildSlides();
+})();
 
 let current = 0;
 let allSlides = [];
