@@ -6,17 +6,21 @@ const { URLSearchParams } = require('url');
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = __dirname;
+
 const PAGE_FILE = path.join(ROOT, 'apology_1.html');
+const CONTENT_FILE = path.join(ROOT, 'content.json');
 const CODES_FILE = path.join(ROOT, 'access-codes.json');
 const STATE_FILE = path.join(ROOT, 'access-state.json');
-const CONTENT_FILE = path.join(ROOT, 'content.json');
+
 const SESSION_COOKIE = 'apology_session';
+
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const MASTER_CODE = process.env.MASTER_CODE || '';
 
 function readJson(file, fallback) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (e) {
+  } catch {
     return fallback;
   }
 }
@@ -38,13 +42,6 @@ function saveContent(content) {
 }
 
 function getCodes() {
-  const fromEnv = (process.env.SITE_CODES || '')
-    .split(',')
-    .map(code => code.trim())
-    .filter(Boolean);
-
-  if (fromEnv.length) return fromEnv;
-
   const fromFile = readJson(CODES_FILE, []);
   return Array.isArray(fromFile) ? fromFile.map(String) : [];
 }
@@ -54,19 +51,34 @@ function saveCodes(codes) {
 }
 
 function getState() {
-  const state = readJson(STATE_FILE, { usedCodes: [], sessions: {} });
+  const state = readJson(STATE_FILE, {
+    usedCodes: [],
+    sessions: {}
+  });
+
   return {
-    usedCodes: Array.isArray(state.usedCodes) ? state.usedCodes : [],
-    sessions: state.sessions && typeof state.sessions === 'object' ? state.sessions : {}
+    usedCodes: Array.isArray(state.usedCodes)
+      ? state.usedCodes
+      : [],
+    sessions:
+      state.sessions && typeof state.sessions === 'object'
+        ? state.sessions
+        : {}
   };
 }
 
 function parseCookies(req) {
   const header = req.headers.cookie || '';
-  return Object.fromEntries(header.split(';').map(part => {
-    const [name, ...rest] = part.trim().split('=');
-    return [name, decodeURIComponent(rest.join('='))];
-  }).filter(([name]) => name));
+
+  return Object.fromEntries(
+    header
+      .split(';')
+      .map(part => {
+        const [name, ...rest] = part.trim().split('=');
+        return [name, decodeURIComponent(rest.join('='))];
+      })
+      .filter(([name]) => name)
+  );
 }
 
 function hasSession(req) {
@@ -83,6 +95,7 @@ function send(res, status, body, headers = {}) {
     'Cache-Control': 'no-store',
     ...headers
   });
+
   res.end(body);
 }
 
@@ -91,6 +104,7 @@ function sendJson(res, status, value) {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store'
   });
+
   res.end(JSON.stringify(value, null, 2));
 }
 
@@ -100,6 +114,7 @@ function redirect(res, location, headers = {}) {
     'Cache-Control': 'no-store',
     ...headers
   });
+
   res.end();
 }
 
@@ -113,19 +128,38 @@ function escapeHtml(value) {
 }
 
 function baseStyles() {
-  return `@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Jost:wght@300;400&display=swap');
-*{box-sizing:border-box;margin:0;padding:0;}
-html,body{min-height:100%;background:#f0ece6;color:#3a3530;}
-body{min-height:100svh;display:flex;align-items:center;justify-content:center;padding:calc(1.5rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right)) calc(1.5rem + env(safe-area-inset-bottom)) calc(1rem + env(safe-area-inset-left));}
-.box{width:min(100%,430px);text-align:center;background:rgba(245,241,235,0.72);border:1px solid #ddd5c8;border-radius:6px;padding:2rem 1.6rem;box-shadow:0 20px 70px rgba(58,53,48,0.12);}
-.title{font-family:'Cormorant Garamond',serif;font-size:1.65rem;font-weight:300;font-style:italic;color:#3a3530;margin-bottom:0.5rem;}
-.sub{font-family:'Jost',sans-serif;font-size:10px;font-weight:300;letter-spacing:0.16em;text-transform:uppercase;color:#9c8f82;margin-bottom:1.4rem;}
-input{font-family:'Jost',sans-serif;font-size:13px;font-weight:300;border:none;border-bottom:1px solid #c8bfb5;background:transparent;outline:none;width:100%;padding:7px 0 8px;color:#3a3530;text-align:center;letter-spacing:0.08em;margin-top:0.5rem;}
-.err{font-family:'Jost',sans-serif;font-size:11px;color:#a06060;min-height:16px;margin-top:0.8rem;letter-spacing:0.06em;}
-button,.link-btn{font-family:'Jost',sans-serif;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;margin-top:0.9rem;padding:9px 22px;border-radius:99px;cursor:pointer;background:#3a3530;color:#f0ece6;border:1px solid #3a3530;text-decoration:none;display:inline-block;}
-.codes{font-family:'Jost',sans-serif;font-size:12px;text-align:left;line-height:1.8;background:#eee9e2;border-radius:4px;padding:1rem;margin-top:1rem;white-space:pre-wrap;word-break:break-word;}
-.hint{font-family:'Jost',sans-serif;font-size:11px;color:#9c8f82;line-height:1.7;margin-top:1rem;}
-@media (max-width:640px){.box{padding:1.65rem 1.15rem;}}`;
+  return `
+body{
+  font-family:sans-serif;
+  background:#f0ece6;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:100vh;
+}
+.box{
+  width:min(92vw,420px);
+  background:white;
+  padding:2rem;
+  border-radius:10px;
+  text-align:center;
+}
+input,button{
+  width:100%;
+  margin-top:1rem;
+  padding:0.8rem;
+}
+.err{
+  color:#a06060;
+  margin-top:0.7rem;
+}
+.codes{
+  margin-top:1rem;
+  text-align:left;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+`;
 }
 
 function page(title, body) {
@@ -142,154 +176,214 @@ function page(title, body) {
 }
 
 function loginPage(error = '') {
-  return page('for invited eyes', `<form class="box" method="POST" action="/access">
-  <p class="title">for invited eyes</p>
-  <p class="sub">enter your one-time code</p>
-  <input name="code" type="password" autocomplete="one-time-code" autofocus>
-  <p class="err">${escapeHtml(error)}</p>
+  return page(
+    'for invited eyes',
+    `
+<form class="box" method="POST" action="/access">
+  <h2>for invited eyes</h2>
+
+  <input
+    name="code"
+    type="password"
+    placeholder="enter code"
+    autocomplete="one-time-code"
+    autofocus
+  >
+
+  <div class="err">${escapeHtml(error)}</div>
+
   <button type="submit">enter</button>
-</form>`);
+</form>
+`
+  );
 }
 
 function adminPage(error = '', generatedCodes = []) {
   const codesBlock = generatedCodes.length
-    ? `<div class="codes">${generatedCodes.map(escapeHtml).join('\n')}</div>`
+    ? `<div class="codes">${generatedCodes
+        .map(escapeHtml)
+        .join('\n')}</div>`
     : '';
 
-  return page('admin', `<form class="box" method="POST" action="/admin/generate">
-  <p class="title">code maker</p>
-  <p class="sub">private admin generator</p>
-  <input name="password" type="password" placeholder="admin password" autocomplete="current-password" autofocus>
-  <input name="count" type="number" min="1" max="100" value="10" placeholder="how many codes">
-  <p class="err">${escapeHtml(error)}</p>
+  return page(
+    'admin',
+    `
+<form class="box" method="POST" action="/admin/generate">
+  <h2>code generator</h2>
+
+  <input
+    name="password"
+    type="password"
+    placeholder="admin password"
+    autocomplete="current-password"
+    autofocus
+  >
+
+  <input
+    name="count"
+    type="number"
+    min="1"
+    max="100"
+    value="10"
+  >
+
+  <div class="err">${escapeHtml(error)}</div>
+
   <button type="submit">generate</button>
+
   ${codesBlock}
-  <p class="hint">New codes are saved to access-codes.json and printed here once. Keep them somewhere safe before leaving this page.</p>
-</form>`);
+</form>
+`
+  );
 }
 
 function collectBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
+
     req.on('data', chunk => {
       body += chunk;
-      if (body.length > 20_000) {
+
+      if (body.length > 50_000_000) {
         req.destroy();
-        reject(new Error('Request body too large'));
+        reject(new Error('Body too large'));
       }
     });
+
     req.on('end', () => resolve(body));
     req.on('error', reject);
   });
 }
 
 function makeCode() {
-  return `invite-${crypto.randomBytes(4).toString('hex')}-${crypto.randomBytes(4).toString('hex')}`;
+  return `invite-${crypto.randomBytes(4).toString('hex')}`;
 }
 
 function generateCodes(count) {
   const existing = getCodes();
   const seen = new Set(existing);
+
   const generated = [];
 
   while (generated.length < count) {
     const code = makeCode();
+
     if (seen.has(code)) continue;
+
     seen.add(code);
     generated.push(code);
   }
 
   saveCodes([...existing, ...generated]);
+
   return generated;
 }
 
 function redeemCode(code) {
-  const codes = getCodes();
   const state = getState();
 
-  const masterCode = process.env.MASTER_CODE || '';
+  if (code === MASTER_CODE && MASTER_CODE) {
+    const token = crypto.randomBytes(32).toString('base64url');
 
-if (code === masterCode) {
+    state.sessions[token] = {
+      createdAt: new Date().toISOString()
+    };
+
+    writeJson(STATE_FILE, state);
+
+    return {
+      ok: true,
+      token
+    };
+  }
+
+  const codes = getCodes();
+
+  if (!codes.includes(code)) {
+    return {
+      ok: false,
+      error: 'invalid code.'
+    };
+  }
+
+  if (state.usedCodes.includes(code)) {
+    return {
+      ok: false,
+      error: 'that code has already been used.'
+    };
+  }
+
   const token = crypto.randomBytes(32).toString('base64url');
 
-  state.sessions[token] = { createdAt: new Date().toISOString() };
-  writeJson(STATE_FILE, state);
-
-  return { ok: true, token };
-}
-
-if (!codes.includes(code)) {
-  return { ok: false, error: 'invalid code.' };
-}
-
-if (state.usedCodes.includes(code)) {
-  return { ok: false, error: 'that code has already been used.' };
-}
-
-  const token = crypto.randomBytes(32).toString('base64url');
   state.usedCodes.push(code);
-  state.sessions[token] = { createdAt: new Date().toISOString() };
+
+  state.sessions[token] = {
+    createdAt: new Date().toISOString()
+  };
+
   writeJson(STATE_FILE, state);
 
-  return { ok: true, token };
-}
-
-function servePage(res) {
-  fs.readFile(PAGE_FILE, (err, data) => {
-    if (err) {
-      send(res, 500, 'Could not load apology_1.html. Make sure it is in the same folder as server.js.');
-      return;
-    }
-
-    res.writeHead(200, {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store'
-    });
-    res.end(data);
-  });
+  return {
+    ok: true,
+    token
+  };
 }
 
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && req.url === '/') {
-      if (hasSession(req)) redirect(res, '/site');
-      else send(res, 200, loginPage());
+      if (hasSession(req)) {
+        redirect(res, '/site');
+      } else {
+        send(res, 200, loginPage());
+      }
+
       return;
     }
 
     if (req.method === 'GET' && req.url === '/site') {
-  if (!hasSession(req)) {
-    redirect(res, '/');
-    return;
-  }
+      if (!hasSession(req)) {
+        redirect(res, '/');
+        return;
+      }
 
-  const token = parseCookies(req)[SESSION_COOKIE];
-  const state = getState();
+      const token = parseCookies(req)[SESSION_COOKIE];
+      const state = getState();
 
-  delete state.sessions[token];
-  writeJson(STATE_FILE, state);
+      delete state.sessions[token];
 
-  fs.readFile(PAGE_FILE, (err, data) => {
-    if (err) {
-      send(res, 500, 'Could not load apology_1.html.');
+      writeJson(STATE_FILE, state);
+
+      fs.readFile(PAGE_FILE, (err, data) => {
+        if (err) {
+          send(
+            res,
+            500,
+            'Could not load apology_1.html.'
+          );
+
+          return;
+        }
+
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'Set-Cookie':
+            `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`
+        });
+
+        res.end(data);
+      });
+
       return;
     }
 
-    res.writeHead(200, {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'Set-Cookie': `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`
-    });
-
-    res.end(data);
-  });
-
-  return;
-}
-
     if (req.method === 'POST' && req.url === '/access') {
       const body = await collectBody(req);
-      const code = new URLSearchParams(body).get('code')?.trim() || '';
+
+      const code =
+        new URLSearchParams(body).get('code')?.trim() || '';
+
       const result = redeemCode(code);
 
       if (!result.ok) {
@@ -298,8 +392,10 @@ const server = http.createServer(async (req, res) => {
       }
 
       redirect(res, '/site', {
-        'Set-Cookie': `${SESSION_COOKIE}=${encodeURIComponent(result.token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000`
+        'Set-Cookie':
+          `${SESSION_COOKIE}=${encodeURIComponent(result.token)}; HttpOnly; SameSite=Lax; Path=/`
       });
+
       return;
     }
 
@@ -308,62 +404,87 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === 'POST' && req.url === '/admin/generate') {
+    if (
+      req.method === 'POST' &&
+      req.url === '/admin/generate'
+    ) {
       const body = await collectBody(req);
+
       const params = new URLSearchParams(body);
+
       const password = params.get('password') || '';
+
       const count = Number(params.get('count') || 10);
 
       if (!ADMIN_PASSWORD) {
-        send(res, 500, adminPage('ADMIN_PASSWORD is not set on the server.'));
+        send(
+          res,
+          500,
+          adminPage('ADMIN_PASSWORD is not set.')
+        );
+
         return;
       }
 
       if (password !== ADMIN_PASSWORD) {
-        send(res, 401, adminPage('incorrect admin password.'));
+        send(
+          res,
+          401,
+          adminPage('incorrect admin password.')
+        );
+
         return;
       }
 
-      if (!Number.isInteger(count) || count < 1 || count > 100) {
-        send(res, 400, adminPage('choose between 1 and 100 codes.'));
+      if (
+        !Number.isInteger(count) ||
+        count < 1 ||
+        count > 100
+      ) {
+        send(
+          res,
+          400,
+          adminPage('choose between 1 and 100.')
+        );
+
         return;
       }
 
       const generated = generateCodes(count);
-      send(res, 200, adminPage('', generated));
-      return;
-    }
 
-    if (req.method === 'GET' && req.url === '/admin/codes.json') {
-      sendJson(res, 200, { codes: getCodes(), usedCodes: getState().usedCodes });
+      send(res, 200, adminPage('', generated));
+
       return;
     }
 
     if (req.method === 'GET' && req.url === '/content') {
-  sendJson(res, 200, getContent());
-  return;
-}
+      sendJson(res, 200, getContent());
+      return;
+    }
 
-if (req.method === 'POST' && req.url === '/save-content') {
-  const body = await collectBody(req);
+    if (
+      req.method === 'POST' &&
+      req.url === '/save-content'
+    ) {
+      const body = await collectBody(req);
 
-  try {
-    const parsed = JSON.parse(body);
-    saveContent(parsed);
-    sendJson(res, 200, { ok: true });
-  } catch {
-    sendJson(res, 400, { ok: false });
-  }
+      const parsed = JSON.parse(body);
 
-  return;
-}
+      saveContent(parsed);
+
+      sendJson(res, 200, { ok: true });
+
+      return;
+    }
 
     send(res, 404, 'Not found.');
   } catch (e) {
+    console.error(e);
+
     send(res, 500, 'Server error.');
   }
 });
 
 server.listen(PORT, () => {
-  console.log(`Apology site running at http://localhost:${PORT}`);
+  console.log(`Running on port ${PORT}`);
 });
