@@ -157,40 +157,23 @@ function page(title, body) {
 }
 
 function loginPage(error = '') {
-  return page(
-    'for invited eyes',
-    `
-<form class="box" method="POST" action="/access">
-  <h2>for invited eyes</h2>
-
-  <input
-    name="code"
-    type="password"
-    placeholder="enter code"
-    autocomplete="one-time-code"
-    autofocus
-  >
-
-  <div class="err">${escapeHtml(error)}</div>
-
+  return page('for invited eyes', `<form class="box" method="POST" action="/access">
+  <p class="title">for invited eyes</p>
+  <p class="sub">enter your one-time code</p>
+  <input name="code" type="password" autocomplete="one-time-code" autofocus>
+  <p class="err">${escapeHtml(error)}</p>
   <button type="submit">enter</button>
-</form>
-`
-  );
+</form>`);
 }
 
 function adminPage(error = '', generatedCodes = []) {
   const codesBlock = generatedCodes.length
-    ? `<div class="codes">${generatedCodes
-        .map(escapeHtml)
-        .join('\n')}</div>`
+    ? `<div class="codes">${generatedCodes.map(escapeHtml).join('\n')}</div>`
     : '';
 
-  return page(
-    'admin',
-    `
-<form class="box" method="POST" action="/admin/generate">
-  <h2>code generator</h2>
+  return page('admin', `<form class="box" method="POST" action="/admin/generate">
+  <p class="title">code maker</p>
+  <p class="sub">private admin generator</p>
 
   <input
     name="password"
@@ -206,16 +189,19 @@ function adminPage(error = '', generatedCodes = []) {
     min="1"
     max="100"
     value="10"
+    placeholder="how many codes"
   >
 
-  <div class="err">${escapeHtml(error)}</div>
+  <p class="err">${escapeHtml(error)}</p>
 
   <button type="submit">generate</button>
 
   ${codesBlock}
-</form>
-`
-  );
+
+  <p class="hint">
+    New codes are saved to access-codes.json and printed here once.
+  </p>
+</form>`);
 }
 
 function collectBody(req) {
