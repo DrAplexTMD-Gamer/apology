@@ -353,6 +353,25 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === 'GET' && req.url === '/content') {
+  sendJson(res, 200, getContent());
+  return;
+}
+
+if (req.method === 'POST' && req.url === '/save-content') {
+  const body = await collectBody(req);
+
+  try {
+    const parsed = JSON.parse(body);
+    saveContent(parsed);
+    sendJson(res, 200, { ok: true });
+  } catch {
+    sendJson(res, 400, { ok: false });
+  }
+
+  return;
+}
+
     send(res, 404, 'Not found.');
   } catch (e) {
     send(res, 500, 'Server error.');
