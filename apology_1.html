@@ -629,9 +629,9 @@ function startAmbience() {
 
     osc.type = i % 2 ? 'triangle' : 'sine';
     osc.frequency.value = freq;
-    gain.gain.value = 1.2 / notes.length;
+    gain.gain.value = 0.45 / notes.length;
     lfo.frequency.value = 0.025 + (i * 0.006);
-    lfoGain.gain.value = 0.11 + (i * 0.35);
+    lfoGain.gain.value = 1.4 + (i * 0.35);
 
     lfo.connect(lfoGain);
     lfoGain.connect(osc.detune);
