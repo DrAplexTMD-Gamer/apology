@@ -17,6 +17,12 @@ body{min-height:100svh;}
 #slide-cover .eyebrow{font-family:'Jost',sans-serif;font-weight:300;font-size:10px;letter-spacing:0.24em;text-transform:uppercase;color:#b0a598;margin-bottom:1.2rem;}
 #slide-cover .big-name{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:clamp(2.8rem,8vw,4.5rem);line-height:1;color:#3a3530;letter-spacing:-0.02em;}
 #slide-cover .sub{margin-top:2rem;font-family:'Jost',sans-serif;font-weight:300;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#c8bfb5;}
+#slide-cover .slide-inner{animation:cover-arrive 1.8s ease both;}
+.cover-hint{margin:2.35rem auto 0;display:flex;flex-direction:column;align-items:center;gap:0.65rem;background:transparent;border:0;color:#b0a598;cursor:pointer;font-family:'Jost',sans-serif;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;opacity:0;animation:hint-arrive 1s ease 1.35s forwards;}
+.cover-hint-mark{position:relative;width:18px;height:28px;border:1px solid #d4ccc1;border-radius:999px;}
+.cover-hint-mark::after{content:"";position:absolute;left:50%;top:7px;width:4px;height:4px;border-radius:50%;background:#b0a598;transform:translateX(-50%);animation:hint-dot 1.8s ease-in-out infinite;}
+.cover-hint:hover{color:#3a3530;}
+.cover-hint:hover .cover-hint-mark{border-color:#b0a598;}
 .pg-label{font-family:'Jost',sans-serif;font-weight:300;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#c8bfb5;margin-bottom:1.6rem;}
 .para-text{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:clamp(1.05rem,2.4vw,1.3rem);line-height:2;color:#3a3530;letter-spacing:0.01em;font-style:italic;}
 .slide-photo-btn{display:inline-block;max-width:100%;background:transparent;border:none;padding:0;cursor:zoom-in;}
@@ -33,11 +39,15 @@ body{min-height:100svh;}
 .img-only .image-grid .slide-img{height:min(34vh,280px);}
 #slide-end .sig{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:1.5rem;color:#9c8f82;font-style:italic;}
 #slide-end .rule{width:32px;height:1px;background:#c8bfb5;margin:1.4rem auto;}
+#slide-end .closing-line{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:1.05rem;line-height:1.8;color:#3a3530;font-style:italic;margin-bottom:1.35rem;}
 #slide-end .from{font-family:'Jost',sans-serif;font-weight:300;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#b0a598;}
 #nav{position:fixed;bottom:calc(2rem + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:1.4rem;z-index:100;}
 .nav-dot{width:5px;height:5px;border-radius:50%;background:#c8bfb5;cursor:pointer;transition:background 0.4s,transform 0.4s;border:none;padding:0;position:relative;}
 .nav-dot::after{content:"";position:absolute;inset:-10px;border-radius:50%;}
 .nav-dot.on{background:#3a3530;transform:scale(1.3);}
+#progress{display:none;font-family:'Jost',sans-serif;font-weight:300;font-size:10px;letter-spacing:0.16em;color:#9c8f82;min-width:3.8rem;text-align:center;}
+#progress-current,#progress-total{display:inline-block;min-width:1.1em;}
+#progress-sep{color:#c8bfb5;margin:0 0.25rem;}
 #arrow-prev,#arrow-next{font-family:'Jost',sans-serif;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#b0a598;background:transparent;border:none;cursor:pointer;padding:10px 0;transition:color 0.3s;}
 #arrow-prev:hover,#arrow-next:hover{color:#3a3530;}
 #edit-trigger{position:fixed;bottom:calc(2rem + env(safe-area-inset-bottom));right:calc(2rem + env(safe-area-inset-right));font-family:'Jost',sans-serif;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#c8bfb5;background:transparent;border:none;cursor:pointer;opacity:0.4;transition:opacity 0.3s;z-index:100;padding:10px 0;}
@@ -84,13 +94,28 @@ body{min-height:100svh;}
 #pw-in{font-family:'Jost',sans-serif;font-size:13px;font-weight:300;border:none;border-bottom:1px solid #c8bfb5;background:transparent;outline:none;padding:4px 0;color:#3a3530;letter-spacing:0.1em;}
 #pw-err{font-family:'Jost',sans-serif;font-size:11px;color:#a06060;min-height:14px;letter-spacing:0.06em;}
 
+@keyframes cover-arrive {
+  from { opacity:0; transform:translateY(10px); filter:blur(3px); }
+  to { opacity:1; transform:translateY(0); filter:blur(0); }
+}
+
+@keyframes hint-arrive {
+  to { opacity:1; }
+}
+
+@keyframes hint-dot {
+  0%,100% { transform:translate(-50%,0); opacity:0.45; }
+  50% { transform:translate(-50%,9px); opacity:1; }
+}
+
 @media (max-width: 640px) {
   .slide{align-items:flex-start;padding:clamp(1.6rem,7vh,3rem) 1.15rem calc(6.2rem + env(safe-area-inset-bottom));}
   .slide-inner{max-width:100%;padding:0.25rem 0.1rem;}
   #slide-cover{align-items:center;}
   #slide-cover .big-name{font-size:clamp(2.7rem,17vw,4.2rem);}
+  .cover-hint{margin-top:2.75rem;}
   .pg-label{margin-bottom:1.1rem;}
-  .para-text{font-size:clamp(1.05rem,5vw,1.22rem);line-height:1.75;}
+  .para-text{font-size:clamp(1.05rem,5vw,1.22rem);line-height:1.75;text-align:center;margin-left:auto;margin-right:auto;}
   .slide-img{max-height:46svh;}
   .image-grid{grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:0.5rem;}
   .image-grid .slide-img{height:min(20svh,150px);}
@@ -100,7 +125,8 @@ body{min-height:100svh;}
   .img-above .image-grid{margin-bottom:1.15rem;}
   .img-below .image-grid{margin-top:1.15rem;}
   #nav{bottom:calc(1rem + env(safe-area-inset-bottom));gap:0.85rem;max-width:calc(100vw - 7rem);}
-  #dots{display:flex;gap:0.85rem;overflow-x:auto;padding:12px 2px;scrollbar-width:none;}
+  #dots{display:none;}
+  #progress{display:block;position:fixed;top:calc(0.9rem + env(safe-area-inset-top));right:calc(0.9rem + env(safe-area-inset-right));min-width:0;padding:0.45rem 0.65rem;background:rgba(245,241,235,0.72);border:1px solid rgba(200,191,181,0.55);border-radius:999px;backdrop-filter:blur(8px);}
   #dots::-webkit-scrollbar{display:none;}
   #arrow-prev,#arrow-next{font-size:9px;letter-spacing:0.14em;}
   #edit-trigger{right:calc(1rem + env(safe-area-inset-right));bottom:calc(1rem + env(safe-area-inset-bottom));}
@@ -128,6 +154,7 @@ body{min-height:100svh;}
 
 @media (prefers-reduced-motion: reduce) {
   .slide,.nav-dot,#arrow-prev,#arrow-next,#edit-trigger,.layout-opt,.upload-label,.add-btn,.ebtn{transition:none;}
+  #slide-cover .slide-inner,.cover-hint,.cover-hint-mark::after{animation:none;opacity:1;filter:none;transform:none;}
 }
 </style>
 </head>
@@ -139,10 +166,15 @@ body{min-height:100svh;}
       <p class="eyebrow">for</p>
       <h1 class="big-name" id="display-name"></h1>
       <p class="sub">something i need to say</p>
+      <button class="cover-hint" onclick="go(1)" aria-label="Continue to the letter">
+        <span class="cover-hint-mark" aria-hidden="true"></span>
+        <span>continue</span>
+      </button>
     </div>
   </div>
   <div class="slide" id="slide-end">
     <div class="slide-inner">
+      <p class="closing-line" id="display-close"></p>
       <p class="sig" id="display-sig">— you know who</p>
       <div class="rule"></div>
       <p class="from"></p>
@@ -153,6 +185,9 @@ body{min-height:100svh;}
 <div id="nav">
   <button id="arrow-prev" onclick="go(-1)" style="visibility:hidden">prev</button>
   <div id="dots"></div>
+  <div id="progress" aria-live="polite">
+    <span id="progress-current">1</span><span id="progress-sep">/</span><span id="progress-total">1</span>
+  </div>
   <button id="arrow-next" onclick="go(1)">next</button>
 </div>
 <button id="edit-trigger" onclick="openEdit()">edit</button>
@@ -174,6 +209,7 @@ body{min-height:100svh;}
       <div class="edit-divider"></div>
       <div><span class="el">her name</span><input class="ef" id="e-name" type="text" maxlength="40"/></div>
       <div><span class="el">closing signature</span><input class="ef" id="e-sig" type="text" maxlength="60" placeholder="— you know who"/></div>
+      <div><span class="el">final line</span><input class="ef" id="e-close" type="text" maxlength="140" placeholder="thank you for reading this"/></div>
       <div class="edit-divider"></div>
       <span class="el">pages — each becomes its own screen</span>
       <div id="para-list"></div>
@@ -210,6 +246,7 @@ const IMAGE_QUALITY = 0.86;
 const defaultData = {
   name: "Her Name",
   sig: "— you know who",
+  closeLine: "thank you for reading this",
   pages: [
     { layout: "text", text: "Write your first paragraph here. Each page can have text, a photo, or both.", imgs: [] },
     { layout: "text", text: "And your second thought, whenever you're ready.", imgs: [] }
@@ -253,6 +290,7 @@ function normalizeData(value) {
   return {
     name: typeof value.name === "string" ? value.name : fallback.name,
     sig: typeof value.sig === "string" ? value.sig : fallback.sig,
+    closeLine: typeof value.closeLine === "string" ? value.closeLine : fallback.closeLine,
     pages: pages.slice(0, 30).map(p => {
       const page = p && typeof p === "object" ? p : {};
       const layout = VALID_LAYOUTS.includes(page.layout) ? page.layout : "text";
@@ -310,6 +348,7 @@ function buildSlides() {
 
   document.getElementById('display-name').textContent = data.name || "Her Name";
   document.getElementById('display-sig').textContent = data.sig || "— you know who";
+  document.getElementById('display-close').textContent = data.closeLine || "";
 
   allSlides = Array.from(document.querySelectorAll('.slide'));
   if (current >= allSlides.length) current = 0;
@@ -407,6 +446,8 @@ function showSlide(idx, animate = true) {
   current = idx;
   document.getElementById('arrow-prev').style.visibility = idx === 0 ? 'hidden' : 'visible';
   document.getElementById('arrow-next').style.visibility = idx === allSlides.length - 1 ? 'hidden' : 'visible';
+  document.getElementById('progress-current').textContent = String(idx + 1);
+  document.getElementById('progress-total').textContent = String(allSlides.length);
   document.querySelectorAll('.nav-dot').forEach((d, i) => d.classList.toggle('on', i === idx));
 }
 
@@ -497,6 +538,7 @@ document.getElementById('pw-in').addEventListener('keydown', e => {
 function loadEditFields() {
   document.getElementById('e-name').value = data.name || '';
   document.getElementById('e-sig').value = data.sig || '';
+  document.getElementById('e-close').value = data.closeLine || '';
   renderPageList();
 }
 
@@ -691,6 +733,7 @@ function syncEditFieldsIfVisible() {
 
   data.name = document.getElementById('e-name').value.trim() || 'Her Name';
   data.sig = document.getElementById('e-sig').value.trim() || '— you know who';
+  data.closeLine = document.getElementById('e-close').value.trim();
   syncPageTextFromFields();
 }
 
@@ -793,6 +836,7 @@ function importEditData() {
 async function saveEdit() {
   data.name = document.getElementById('e-name').value.trim() || 'Her Name';
   data.sig = document.getElementById('e-sig').value.trim() || '— you know who';
+  data.closeLine = document.getElementById('e-close').value.trim();
   syncPageTextFromFields();
   data.pages.forEach(p => { p.text = p.text.trim(); });
   if (!(await saveDataToStorage())) return;
