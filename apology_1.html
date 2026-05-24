@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>for her</title>
+<title>MoneyTree</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Jost:wght@300;400&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -205,7 +205,7 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
 <div id="slides">
   <div class="slide" id="slide-cover">
     <div class="slide-inner">
-      <p class="eyebrow">for</p>
+      <p class="eyebrow">For</p>
       <h1 class="big-name" id="display-name"></h1>
       <p class="sub">something i need to say</p>
       <button class="next-arrow-hint" onclick="go(1)" aria-label="Go to the next page">
@@ -235,7 +235,7 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
 <div id="edit-modal">
   <div id="edit-box">
     <div id="pw-phase">
-      <p class="ph-title">just you</p>
+      <p class="ph-title">Just you</p>
       <p class="ph-sub">enter your password to edit</p>
       <input id="pw-in" type="password" placeholder="••••••••" />
       <p id="pw-err"></p>
@@ -273,7 +273,7 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
 
 <script>
 // ── CHANGE YOUR PASSWORD HERE ──────────────────────────────
-const PASS = "dorin";
+const PASS = "dorinireallyloveyou";
 // ──────────────────────────────────────────────────────────
 
 const KEY = "apology_photos_v1";
@@ -317,6 +317,9 @@ let coverArrowTimer = null;
 let lightboxImages = [];
 let lightboxIndex = 0;
 let lightboxTouchX = null;
+let ambienceStarted = false;
+let ambienceCtx = null;
+let ambienceTimer = null;
 
 function cloneDefaultData() {
   return JSON.parse(JSON.stringify(defaultData));
@@ -582,6 +585,86 @@ function goTo(idx) {
     isTransitioning = false;
   }, 620);
 }
+
+function startAmbience() {
+  if (ambienceStarted) return;
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+
+  ambienceStarted = true;
+  ambienceCtx = new AudioContextClass();
+
+  const master = ambienceCtx.createGain();
+  master.gain.value = 0.045;
+  master.connect(ambienceCtx.destination);
+
+  const padGain = ambienceCtx.createGain();
+  padGain.gain.value = 0;
+  padGain.connect(master);
+
+  const delay = ambienceCtx.createDelay(5);
+  delay.delayTime.value = 1.35;
+
+  const feedback = ambienceCtx.createGain();
+  feedback.gain.value = 0.28;
+
+  delay.connect(feedback);
+  feedback.connect(delay);
+  delay.connect(master);
+
+  const filter = ambienceCtx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 1600;
+  filter.Q.value = 0.6;
+  filter.connect(padGain);
+  filter.connect(delay);
+
+  const notes = [220, 277.18, 329.63, 369.99];
+  notes.forEach((freq, i) => {
+    const osc = ambienceCtx.createOscillator();
+    const gain = ambienceCtx.createGain();
+    const lfo = ambienceCtx.createOscillator();
+    const lfoGain = ambienceCtx.createGain();
+
+    osc.type = i % 2 ? 'triangle' : 'sine';
+    osc.frequency.value = freq;
+    gain.gain.value = 0.055 / notes.length;
+    lfo.frequency.value = 0.025 + (i * 0.006);
+    lfoGain.gain.value = 1.4 + (i * 0.35);
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.detune);
+    osc.connect(gain);
+    gain.connect(filter);
+    osc.start();
+    lfo.start();
+  });
+
+  const now = ambienceCtx.currentTime;
+  padGain.gain.linearRampToValueAtTime(0, now);
+  padGain.gain.linearRampToValueAtTime(1, now + 4);
+
+  function breathe() {
+    if (!ambienceCtx) return;
+    const t = ambienceCtx.currentTime;
+    padGain.gain.cancelScheduledValues(t);
+    padGain.gain.setTargetAtTime(0.7 + Math.random() * 0.25, t, 4.5);
+    filter.frequency.setTargetAtTime(1200 + Math.random() * 700, t, 5);
+    ambienceTimer = setTimeout(breathe, 7000 + Math.random() * 5000);
+  }
+
+  breathe();
+}
+
+function unlockAmbience() {
+  startAmbience();
+  if (ambienceCtx && ambienceCtx.state === 'suspended') ambienceCtx.resume();
+}
+
+['pointerdown', 'touchstart', 'keydown', 'click'].forEach(eventName => {
+  document.addEventListener(eventName, unlockAmbience, { once: true, passive: true });
+});
 
 document.addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
