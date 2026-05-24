@@ -663,9 +663,25 @@ function unlockAmbience() {
   if (ambienceCtx && ambienceCtx.state === 'suspended') ambienceCtx.resume();
 }
 
+function pauseAmbience() {
+  if (ambienceCtx && ambienceCtx.state === 'running') ambienceCtx.suspend();
+}
+
+function resumeAmbience() {
+  if (ambienceStarted && ambienceCtx && ambienceCtx.state === 'suspended') ambienceCtx.resume();
+}
+
 ['pointerdown', 'touchstart', 'keydown', 'click'].forEach(eventName => {
   document.addEventListener(eventName, unlockAmbience, { once: true, passive: true });
 });
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) pauseAmbience();
+  else resumeAmbience();
+});
+
+window.addEventListener('pagehide', pauseAmbience);
+window.addEventListener('beforeunload', pauseAmbience);
 
 document.addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
