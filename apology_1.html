@@ -10,6 +10,9 @@
 html,body{min-height:100%;background:#f0ece6;color:#3a3530;overflow:hidden;}
 body{min-height:100svh;}
 #grain{position:fixed;inset:0;pointer-events:none;z-index:50;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");opacity:0.045;}
+#loader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:80;transition:opacity 0.45s ease,visibility 0.45s ease;}
+.loader-ring{width:32px;height:32px;border:1px solid rgba(176,165,152,0.38);border-top-color:#9c8f82;border-radius:50%;animation:loader-spin 1s linear infinite;}
+body.content-ready #loader{opacity:0;visibility:hidden;pointer-events:none;}
 #slides{position:fixed;inset:0;}
 .slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:2.5rem 2.5rem calc(5rem + env(safe-area-inset-bottom));opacity:0;transition:opacity 1.1s ease;pointer-events:none;overflow:hidden;}
 .slide.active{opacity:1;pointer-events:auto;}
@@ -23,9 +26,11 @@ body{min-height:100svh;}
 #slide-cover .eyebrow{font-family:'Jost',sans-serif;font-weight:300;font-size:10px;letter-spacing:0.24em;text-transform:uppercase;color:#b0a598;margin-bottom:1.2rem;}
 #slide-cover .big-name{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:clamp(2.8rem,8vw,4.5rem);line-height:1;color:#3a3530;letter-spacing:-0.02em;}
 #slide-cover .sub{margin-top:2rem;font-family:'Jost',sans-serif;font-weight:300;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#c8bfb5;}
-.next-arrow-hint{position:fixed;left:var(--next-arrow-left,50%);bottom:var(--next-arrow-bottom,calc(3.2rem + env(safe-area-inset-bottom)));width:92px;height:min(26vh,210px);min-height:150px;transform:translateX(-50%);background:transparent;border:0;color:#b0a598;cursor:pointer;z-index:95;opacity:0;animation:hint-arrive 0.8s ease 1.45s forwards;}
+.next-arrow-hint{position:fixed;left:var(--next-arrow-left,50%);bottom:var(--next-arrow-bottom,calc(3.2rem + env(safe-area-inset-bottom)));width:92px;height:min(26vh,210px);min-height:150px;transform:translateX(var(--next-arrow-x,-50%));background:transparent;border:0;color:#b0a598;cursor:pointer;z-index:95;opacity:0;}
 .next-arrow-hint svg{display:block;width:100%;height:100%;overflow:visible;}
-.next-arrow-hint .arrow-path{fill:none;stroke:currentColor;stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:310;stroke-dashoffset:310;animation:twirly-arrow 5.2s ease-in-out infinite;}
+body.content-ready #slide-cover.active .next-arrow-hint{animation:hint-arrive 0.8s ease 1.45s forwards;}
+.next-arrow-hint .arrow-path{fill:none;stroke:currentColor;stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:310;stroke-dashoffset:310;opacity:0;}
+body.content-ready #slide-cover.active .next-arrow-hint .arrow-path{animation:twirly-arrow 5.2s ease-in-out infinite;}
 .next-arrow-hint:hover{color:#7a6f65;}
 .pg-label{font-family:'Jost',sans-serif;font-weight:300;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#c8bfb5;margin-bottom:1.6rem;}
 .para-text{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:clamp(1.05rem,2.4vw,1.3rem);line-height:2;color:#3a3530;letter-spacing:0.01em;font-style:italic;}
@@ -110,6 +115,10 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
   to { opacity:1; }
 }
 
+@keyframes loader-spin {
+  to { transform:rotate(360deg); }
+}
+
 @keyframes twirly-arrow {
   0%,38% { stroke-dashoffset:310; opacity:0; transform:translate(0,-6px); }
   46% { opacity:1; }
@@ -143,7 +152,7 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
   .dyn-slide.active .slide-inner > *{animation-duration:0.55s;}
   #slide-cover{align-items:center;}
   #slide-cover .big-name{font-size:clamp(2.7rem,17vw,4.2rem);}
-  .next-arrow-hint{width:80px;height:min(24vh,178px);min-height:132px;transform:translateX(-50%);}
+  .next-arrow-hint{width:80px;height:min(24vh,178px);min-height:132px;}
   .pg-label{margin-bottom:1.1rem;}
   .para-text{font-size:clamp(1.05rem,5vw,1.22rem);line-height:1.75;text-align:center;margin-left:auto;margin-right:auto;}
   .slide-img{max-height:46svh;}
@@ -184,12 +193,15 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
 
 @media (prefers-reduced-motion: reduce) {
   .slide,.nav-dot,#arrow-prev,#arrow-next,#edit-trigger,.layout-opt,.upload-label,.add-btn,.ebtn{transition:none;}
-  .slide.active .slide-inner > *,#nav,#edit-trigger,.next-arrow-hint,.next-arrow-hint .arrow-path,.slide.active.has-scroll .scroll-cue,.scroll-cue-arrow{animation:none;opacity:1;filter:none;}
+  .slide.active .slide-inner > *,#nav,#edit-trigger,#loader,.loader-ring,.next-arrow-hint,.next-arrow-hint .arrow-path,.slide.active.has-scroll .scroll-cue,.scroll-cue-arrow{animation:none;opacity:1;filter:none;}
 }
 </style>
 </head>
 <body>
 <div id="grain"></div>
+<div id="loader" aria-label="Loading" role="status">
+  <div class="loader-ring"></div>
+</div>
 <div id="slides">
   <div class="slide" id="slide-cover">
     <div class="slide-inner">
@@ -493,12 +505,24 @@ function positionCoverArrow() {
 
   const rect = next.getBoundingClientRect();
   const hintRect = hint.getBoundingClientRect();
+  const viewBoxWidth = 92;
+  const viewBoxHeight = 210;
+  const tipX = 47;
+  const tipY = 186;
+  const scale = Math.min(hintRect.width / viewBoxWidth, hintRect.height / viewBoxHeight);
+  const renderedWidth = viewBoxWidth * scale;
+  const renderedHeight = viewBoxHeight * scale;
+  const renderedLeft = (hintRect.width - renderedWidth) / 2;
+  const renderedTop = hintRect.height - renderedHeight;
+  const tipOffsetX = renderedLeft + (tipX * scale);
+  const tipOffsetFromBottom = hintRect.height - (renderedTop + (tipY * scale));
   const centerX = rect.left + (rect.width / 2);
-  const arrowTipOffsetFromBottom = hintRect.height * ((210 - 186) / 210);
-  const bottomGap = window.innerHeight - rect.top - arrowTipOffsetFromBottom + 4;
+  const targetY = rect.top + Math.min(rect.height * 0.35, 8);
+  const bottomGap = window.innerHeight - targetY - tipOffsetFromBottom;
 
-  document.documentElement.style.setProperty('--next-arrow-left', `${Math.round(centerX)}px`);
+  document.documentElement.style.setProperty('--next-arrow-left', `${Math.round(centerX - tipOffsetX)}px`);
   document.documentElement.style.setProperty('--next-arrow-bottom', `${Math.round(bottomGap)}px`);
+  document.documentElement.style.setProperty('--next-arrow-x', '0px');
 }
 
 function updateSlideScrollCue(slide) {
