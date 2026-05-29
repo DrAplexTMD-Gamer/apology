@@ -80,6 +80,31 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
 .ef{font-family:'Cormorant Garamond',serif;font-size:1.05rem;border:none;border-bottom:1px solid #c8bfb5;background:transparent;outline:none;width:100%;padding:3px 0 5px;color:#3a3530;font-weight:300;}
 .ef-area{font-family:'Cormorant Garamond',serif;font-size:1.05rem;border:none;border-bottom:1px solid #c8bfb5;background:transparent;outline:none;width:100%;padding:3px 0 5px;color:#3a3530;resize:none;min-height:80px;line-height:1.8;font-weight:300;}
 .edit-divider{height:1px;background:#e0d8cf;margin:0.2rem 0;}
+.edit-nav{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:12px;
+}
+
+#edit-page-label{
+  font-family:'Jost',sans-serif;
+  font-size:10px;
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+  color:#9c8f82;
+}
+
+#page-editor{
+  display:flex;
+  flex-direction:column;
+  gap:0.8rem;
+}
+
+.big-editor{
+  min-height:320px;
+}
 .page-card{background:#eee9e2;border-radius:3px;padding:1rem;display:flex;flex-direction:column;gap:0.7rem;}
 .page-card-header{display:flex;align-items:center;justify-content:space-between;}
 .page-num{font-family:'Jost',sans-serif;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#b0a598;}
@@ -253,8 +278,17 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
       <div><span class="el">final line</span><input class="ef" id="e-close" type="text" maxlength="140" placeholder="thank you for reading this"/></div>
       <div class="edit-divider"></div>
       <span class="el">pages — each becomes its own screen</span>
-      <div id="para-list"></div>
+
+      <div class="edit-nav">
+       <button class="ebtn" onclick="prevEditPage()">◀ prev</button>
+      <span id="edit-page-label">page 1 / 1</span>
+      <button class="ebtn" onclick="nextEditPage()">next ▶</button>
+      </div>
+
+      <div id="page-editor"></div>
+
       <button class="add-btn" onclick="addPage()">+ add page</button>
+      <button class="add-btn" onclick="deleteCurrentPage()">remove current page</button>
       <div class="edit-divider"></div>
       <div class="edit-row">
         <button class="ebtn" onclick="closeEdit()">cancel</button>
@@ -310,6 +344,7 @@ let data = null;
 })();
 
 let current = 0;
+let editPage = 0;
 let allSlides = [];
 let isTransitioning = false;
 let activationTimer = null;
@@ -754,108 +789,215 @@ function loadEditFields() {
   document.getElementById('e-name').value = data.name || '';
   document.getElementById('e-sig').value = data.sig || '';
   document.getElementById('e-close').value = data.closeLine || '';
-  renderPageList();
+  renderEditorPage();
 }
 
-function renderPageList() {
-  const list = document.getElementById('para-list');
-  list.innerHTML = '';
-  data.pages.forEach((p, i) => {
-    const card = document.createElement('div');
-    card.className = 'page-card';
-    const layouts = [
-      { val: 'text', label: 'text only' },
-      { val: 'img-only', label: 'photo only' },
-      { val: 'img-above', label: 'photo then text' },
-      { val: 'img-below', label: 'text then photo' }
-    ];
-    const layoutBtns = layouts.map(l =>
-      `<button class="layout-opt${p.layout === l.val ? ' sel' : ''}" onclick="setLayout(${i},'${l.val}')">${l.label}</button>`
-    ).join('');
-    const imgSrcs = (p.imgs || []).map(safeImgSrc).filter(Boolean);
-    const hasRoomForMore = imgSrcs.length < MAX_IMAGES_PER_PAGE;
-    const previewHtml = imgSrcs.length ? `
-      <div class="photo-list">
-        ${imgSrcs.map((src, photoIndex) => `
-          <div class="photo-item">
-            <img class="photo-preview" src="${escAttr(src)}" alt="Selected photo ${photoIndex + 1}" />
-            <button class="rm-btn" onclick="removeImg(${i},${photoIndex})">remove</button>
-          </div>
-        `).join('')}
-      </div>` : '';
+function renderEditorPage() {
+  const container = document.getElementById('page-editor');
 
-    const imgSection = p.layout !== 'text' ? `
-      <div>
-        <span class="el">photos (${imgSrcs.length}/${MAX_IMAGES_PER_PAGE})</span>
-        ${previewHtml}
-        ${hasRoomForMore ? `
-          <label class="upload-label">
-            ${imgSrcs.length ? 'add photos' : 'upload photos'}
-            <input type="file" accept="image/*" multiple style="display:none" onchange="handleImg(${i},this)" />
-          </label>
-        ` : '<span class="el">photo limit reached</span>'}
-      </div>` : '';
+  if (!data.pages.length) {
+    data.pages.push({
+      layout:'text',
+      text:'',
+      imgs:[]
+    });
+  }
 
-    const textSection = p.layout !== 'img-only' ? `
-      <div>
-        <span class="el">text</span>
-        <textarea class="ef-area" data-i="${i}" rows="3">${escHtmlTextarea(p.text || '')}</textarea>
-      </div>` : '';
+  editPage = Math.max(
+    0,
+    Math.min(editPage, data.pages.length - 1)
+  );
 
-    card.innerHTML = `
-      <div class="page-card-header">
-        <span class="page-num">page ${String(i + 1).padStart(2, '0')}</span>
-        ${data.pages.length > 1 ? `<button class="rm-btn" onclick="removePage(${i})">remove page</button>` : ''}
-      </div>
+  const p = data.pages[editPage];
+
+  document.getElementById('edit-page-label').textContent =
+    `page ${editPage + 1} / ${data.pages.length}`;
+
+  const layouts = [
+    { val:'text', label:'text only' },
+    { val:'img-only', label:'photo only' },
+    { val:'img-above', label:'photo then text' },
+    { val:'img-below', label:'text then photo' }
+  ];
+
+  const layoutBtns = layouts.map(l =>
+    `<button class="layout-opt ${
+      p.layout === l.val ? 'sel' : ''
+    }"
+    onclick="setLayout(${editPage},'${l.val}')">
+    ${l.label}
+    </button>`
+  ).join('');
+
+  const imgs = (p.imgs || [])
+    .map(safeImgSrc)
+    .filter(Boolean);
+
+  container.innerHTML = `
+    <div class="page-card">
+
       <div>
         <span class="el">layout</span>
-        <div class="layout-row">${layoutBtns}</div>
+        <div class="layout-row">
+          ${layoutBtns}
+        </div>
       </div>
-      ${imgSection}
-      ${textSection}
-    `;
-    list.appendChild(card);
-  });
+
+      ${
+        p.layout !== 'text'
+          ? `
+          <div>
+            <span class="el">
+              photos (${imgs.length}/${MAX_IMAGES_PER_PAGE})
+            </span>
+
+            ${
+              imgs.length
+                ? `
+                <div class="photo-list">
+                  ${imgs.map((src,index)=>`
+                    <div class="photo-item">
+                      <img class="photo-preview"
+                           src="${src}">
+                      <button class="rm-btn"
+                              onclick="removeImg(${editPage},${index})">
+                        remove
+                      </button>
+                    </div>
+                  `).join('')}
+                </div>
+                `
+                : ''
+            }
+
+            ${
+              imgs.length < MAX_IMAGES_PER_PAGE
+                ? `
+                <label class="upload-label">
+                  upload photos
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style="display:none"
+                    onchange="handleImg(${editPage},this)">
+                </label>
+                `
+                : ''
+            }
+
+          </div>
+          `
+          : ''
+      }
+
+      ${
+        p.layout !== 'img-only'
+          ? `
+          <div>
+            <span class="el">text</span>
+            <textarea
+              id="single-page-editor"
+              class="ef-area big-editor"
+            >${escHtmlTextarea(p.text || '')}</textarea>
+          </div>
+          `
+          : ''
+      }
+
+    </div>
+  `;
 }
 
-function syncPageTextFromFields() {
-  document.querySelectorAll('.ef-area[data-i]').forEach(t => {
-    const i = parseInt(t.getAttribute('data-i'), 10);
-    if (data.pages[i]) data.pages[i].text = t.value;
-  });
+function syncCurrentEditor() {
+  const textarea =
+    document.getElementById('single-page-editor');
+
+  if (
+    textarea &&
+    data.pages[editPage]
+  ) {
+    data.pages[editPage].text =
+      textarea.value;
+  }
 }
+
+function prevEditPage() {
+  syncCurrentEditor();
+
+  if (editPage > 0) {
+    editPage--;
+    renderEditorPage();
+  }
+}
+
+function nextEditPage() {
+  syncCurrentEditor();
+
+  if (editPage < data.pages.length - 1) {
+    editPage++;
+    renderEditorPage();
+  }
+}
+
+function deleteCurrentPage() {
+  if (data.pages.length <= 1) return;
+
+  data.pages.splice(editPage,1);
+
+  if (editPage >= data.pages.length) {
+    editPage = data.pages.length - 1;
+  }
+
+  renderEditorPage();
+}
+
+
+// function syncPageTextFromFields() {
+//   document.querySelectorAll('.ef-area[data-i]').forEach(t => {
+//     const i = parseInt(t.getAttribute('data-i'), 10);
+//     if (data.pages[i]) data.pages[i].text = t.value;
+//   });
+// }
 
 function setLayout(i, val) {
-  syncPageTextFromFields();
+  syncCurrentEditor();
   data.pages[i].layout = val;
-  renderPageList();
+  renderEditorPage();
 }
 
 function removeImg(i, photoIndex) {
-  syncPageTextFromFields();
+  syncCurrentEditor();
   if (!data.pages[i].imgs) data.pages[i].imgs = [];
   data.pages[i].imgs.splice(photoIndex, 1);
-  renderPageList();
+  renderEditorPage();
 }
 
-function removePage(i) {
-  if (data.pages.length <= 1) return;
-  syncPageTextFromFields();
-  data.pages.splice(i, 1);
-  renderPageList();
-}
+// function removePage(i) {
+//   if (data.pages.length <= 1) return;
+//   syncCurrentEditor();
+//   data.pages.splice(i, 1);
+//   renderEditorPage();
+// }
 
 function addPage() {
-  syncPageTextFromFields();
-  data.pages.push({ layout: 'text', text: '', imgs: [] });
-  renderPageList();
-  document.getElementById('para-list').lastElementChild.scrollIntoView({ behavior: 'smooth' });
+  syncCurrentEditor();
+
+  data.pages.push({
+    layout:'text',
+    text:'',
+    imgs:[]
+  });
+
+  editPage = data.pages.length - 1;
+
+  renderEditorPage();
 }
 
 async function handleImg(i, input) {
   const files = Array.from(input.files || []);
   if (!files.length) return;
-  syncPageTextFromFields();
+  syncCurrentEditor();
   const badFile = files.find(file => !/^image\/(?:png|jpe?g|gif|webp|bmp|avif)$/i.test(file.type));
   if (badFile) {
     input.value = '';
@@ -889,7 +1031,7 @@ async function handleImg(i, input) {
   } finally {
     input.disabled = false;
     input.value = '';
-    renderPageList();
+    renderEditorPage();
   }
 }
 
@@ -949,7 +1091,7 @@ function syncEditFieldsIfVisible() {
   data.name = document.getElementById('e-name').value.trim() || 'Her Name';
   data.sig = document.getElementById('e-sig').value.trim() || '— you know who';
   data.closeLine = document.getElementById('e-close').value.trim();
-  syncPageTextFromFields();
+  syncCurrentEditor();
 }
 
 async function saveDataToStorage() {
@@ -1052,7 +1194,8 @@ async function saveEdit() {
   data.name = document.getElementById('e-name').value.trim() || 'Her Name';
   data.sig = document.getElementById('e-sig').value.trim() || '— you know who';
   data.closeLine = document.getElementById('e-close').value.trim();
-  syncPageTextFromFields();
+  syncCurrentEditor();
+
   data.pages.forEach(p => { p.text = p.text.trim(); });
   if (!(await saveDataToStorage())) return;
   closeEdit();
