@@ -10,7 +10,7 @@
 button,img,svg{user-select:none;-webkit-user-select:none;-webkit-user-drag:none;}
 html,body{min-height:100%;background:#f0ece6;color:#3a3530;overflow:hidden;}
 body{min-height:100svh;}
-#grain{position:fixed;inset:0;pointer-events:none;z-index:50;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");opacity:0.045;}
+#grain{position:fixed;inset:0;pointer-events:none;z-index:50;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.35' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");opacity:0.045;}
 #loader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:80;transition:opacity 0.45s ease,visibility 0.45s ease;}
 .loader-ring{width:32px;height:32px;border:1px solid rgba(176,165,152,0.38);border-top-color:#9c8f82;border-radius:50%;animation:loader-spin 1s linear infinite;}
 body.content-ready #loader{opacity:0;visibility:hidden;pointer-events:none;}
@@ -114,11 +114,20 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
   min-height:320px;
 }
 #page-count{
+  position:fixed;
+  left:50%;
+  bottom:calc(0.7rem + env(safe-area-inset-bottom));
+
+  transform:translateX(-50%);
+
   font-family:'Jost',sans-serif;
   font-size:10px;
   letter-spacing:0.16em;
   color:#b0a598;
   white-space:nowrap;
+
+  z-index:100;
+  pointer-events:none;
 }
 .page-card{background:#eee9e2;border-radius:3px;padding:1rem;display:flex;flex-direction:column;gap:0.7rem;}
 .page-card-header{display:flex;align-items:center;justify-content:space-between;}
@@ -268,10 +277,13 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
 
 <div id="nav">
   <button id="arrow-prev" onclick="go(-1)" style="visibility:hidden">prev</button>
+
   <div id="dots"></div>
-  <span id="page-count"></span>
+
   <button id="arrow-next" onclick="go(1)">next</button>
 </div>
+
+<div id="page-count"></div>
 <button id="edit-trigger" onclick="openEdit()">edit</button>
 
 <div id="edit-modal">
