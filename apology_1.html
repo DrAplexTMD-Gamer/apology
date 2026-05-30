@@ -73,7 +73,21 @@ body.content-ready.arrow-ready #slide-cover.active .next-arrow-hint .arrow-path{
   user-select:none;
   pointer-events:none;
 }
-#arrow-prev,#arrow-next{font-family:'Jost',sans-serif;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#b0a598;background:transparent;border:none;cursor:pointer;padding:10px 0;transition:color 0.3s;}
+/* #arrow-prev,#arrow-next{font-family:'Jost',sans-serif;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#b0a598;background:transparent;border:none;cursor:pointer;padding:10px 0;transition:color 0.3s;} */
+#arrow-prev,#arrow-next{
+  font-family:'Jost',sans-serif;
+  font-size:10px;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color:#b0a598;
+  background:transparent;
+  border:none;
+  cursor:pointer;
+
+  padding:18px 22px;
+
+  transition:color 0.3s;
+}
 #arrow-prev:hover,#arrow-next:hover{color:#3a3530;}
 body.content-ready #nav{visibility:visible;animation:nav-pop 0.9s cubic-bezier(0.2,0.8,0.2,1) 0.9s both;}
 body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubic-bezier(0.2,0.8,0.2,1) 1s both;}
@@ -138,6 +152,33 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
 
   z-index:100;
   pointer-events:none;
+}
+#progress-wrap{
+  position:fixed;
+  left:50%;
+  bottom:calc(0.25rem + env(safe-area-inset-bottom));
+
+  transform:translateX(-50%);
+
+  width:120px;
+  height:2px;
+
+  background:rgba(176,165,152,0.15);
+
+  border-radius:999px;
+
+  overflow:hidden;
+
+  z-index:99;
+  pointer-events:none;
+}
+
+#progress-bar{
+  width:0%;
+  height:100%;
+  background:#3a3530;
+
+  transition:width .4s ease;
 }
 .page-card{background:#eee9e2;border-radius:3px;padding:1rem;display:flex;flex-direction:column;gap:0.7rem;}
 .page-card-header{display:flex;align-items:center;justify-content:space-between;}
@@ -294,6 +335,9 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
 </div>
 
 <div id="page-count"></div>
+<div id="progress-wrap">
+  <div id="progress-bar"></div>
+</div>
 <button id="edit-trigger" onclick="openEdit()">edit</button>
 
 <div id="edit-modal">
@@ -317,11 +361,34 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
       <div class="edit-divider"></div>
       <span class="el">pages — each becomes its own screen</span>
 
-      <div class="edit-nav">
-       <button class="ebtn" onclick="prevEditPage()">◀ prev</button>
-      <span id="edit-page-label">page 1 / 1</span>
-      <button class="ebtn" onclick="nextEditPage()">next ▶</button>
-      </div>
+     <div class="edit-nav">
+  <button class="ebtn" onclick="prevEditPage()">◀ prev</button>
+
+  <div style="display:flex;align-items:center;gap:8px;">
+    <input
+      id="edit-page-jump"
+      type="number"
+      min="1"
+      value="1"
+      onchange="jumpToEditPage()"
+      style="
+        width:70px;
+        text-align:center;
+        font-family:'Jost',sans-serif;
+        font-size:10px;
+        letter-spacing:0.12em;
+        border:none;
+        border-bottom:1px solid #c8bfb5;
+        background:transparent;
+        color:#3a3530;
+        outline:none;
+      "
+    >
+    <span id="edit-page-label">page 1 / 1</span>
+  </div>
+
+  <button class="ebtn" onclick="nextEditPage()">next ▶</button>
+</div>
 
       <div id="page-editor"></div>
 
@@ -472,7 +539,18 @@ function buildSlides() {
   document.getElementById('display-close').textContent = data.closeLine || "";
 
   allSlides = Array.from(document.querySelectorAll('.slide'));
-  if (current >= allSlides.length) current = 0;
+  const savedPage =
+  parseInt(localStorage.getItem('lastPage'));
+
+if (
+  !isNaN(savedPage) &&
+  savedPage >= 0 &&
+  savedPage < allSlides.length
+){
+  current = savedPage;
+} else {
+  current = 0;
+}
   buildDots();
   document.body.classList.add('content-ready');
   showSlide(current, false);
@@ -602,6 +680,8 @@ function showSlide(idx, animate = true) {
   else { allSlides[idx].classList.add('active'); }
   current = idx;
 
+  localStorage.setItem('lastPage', current);
+
   buildDots();
 
   document.getElementById('arrow-prev').style.visibility = idx === 0 ? 'hidden' : 'visible';
@@ -609,6 +689,11 @@ function showSlide(idx, animate = true) {
   // document.querySelectorAll('.nav-dot').forEach((d, i) => d.classList.toggle('on', i === idx));
   document.getElementById('page-count').textContent =
   `${current + 1}/${allSlides.length}`;
+  const progress =
+  ((current + 1) / allSlides.length) * 100;
+
+document.getElementById('progress-bar').style.width =
+  progress + '%';
   requestAnimationFrame(() => {
     updateScrollCues();
     positionCoverArrow();
@@ -846,6 +931,30 @@ function closeEdit() {
   document.getElementById('pw-in').value = '';
 }
 
+function jumpToEditPage() {
+  syncCurrentEditor();
+
+  const input =
+    document.getElementById('edit-page-jump');
+
+  let page =
+    parseInt(input.value, 10);
+
+  if (isNaN(page)) {
+    input.value = editPage + 1;
+    return;
+  }
+
+  page = Math.max(
+    1,
+    Math.min(page, data.pages.length)
+  );
+
+  editPage = page - 1;
+
+  renderEditorPage();
+}
+
 function checkPw() {
   if (document.getElementById('pw-in').value === PASS) {
     document.getElementById('pw-phase').style.display = 'none';
@@ -861,6 +970,8 @@ document.getElementById('pw-in').addEventListener('keydown', e => {
   if (e.key === 'Enter') checkPw();
   if (e.key === 'Escape') closeEdit();
 });
+
+
 
 function loadEditFields() {
   document.getElementById('e-name').value = data.name || '';
@@ -890,6 +1001,9 @@ function renderEditorPage() {
   document.getElementById('edit-page-label').textContent =
     `page ${editPage + 1} / ${data.pages.length}`;
 
+  document.getElementById('edit-page-jump').value =
+  editPage + 1;
+  
   const layouts = [
     { val:'text', label:'text only' },
     { val:'img-only', label:'photo only' },
