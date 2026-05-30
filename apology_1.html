@@ -15,7 +15,7 @@ body{min-height:100svh;}
 .loader-ring{width:32px;height:32px;border:1px solid rgba(176,165,152,0.38);border-top-color:#9c8f82;border-radius:50%;animation:loader-spin 1s linear infinite;}
 body.content-ready #loader{opacity:0;visibility:hidden;pointer-events:none;}
 #slides{position:fixed;inset:0;}
-.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:2.5rem 2.5rem calc(5rem + env(safe-area-inset-bottom));opacity:0;transition:opacity 1.1s ease;pointer-events:none;overflow:hidden;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:2.5rem 2.5rem calc(5rem + env(safe-area-inset-bottom));opacity:0;transition:opacity 1.1s ease;pointer-events:none;overflow:hidden;contain: layout paint;content-visibility: auto;will-change: opacity, transform;}
 .slide.active{opacity:1;pointer-events:auto;}
 .slide-inner{max-width:520px;width:100%;max-height:100%;text-align:center;overflow-y:auto;overscroll-behavior:contain;padding:0.25rem;scrollbar-width:none;-ms-overflow-style:none;}
 .slide-inner::-webkit-scrollbar{display:none;}
