@@ -417,7 +417,7 @@ const PASS = "dorinireallyloveyou";
 // ──────────────────────────────────────────────────────────
 
 const KEY = "apology_photos_v1";
-const VALID_LAYOUTS = ["text", "img-only", "img-above", "img-below", "choice"];
+const VALID_LAYOUTS = ["text", "img-only", "img-above", "img-below"];
 const SAFE_IMAGE_RE = /^data:image\/(?:png|jpe?g|gif|webp|bmp|avif);base64,/i;
 const MAX_IMAGES_PER_PAGE = 8;
 const MAX_IMAGE_DIMENSION = 1600;
@@ -484,10 +484,6 @@ function normalizeData(value) {
       return {
         layout,
         text: typeof page.text === "string" ? page.text : "",
-        optionA: typeof page.optionA === "string" ? page.optionA : "Option A",
-        optionB: typeof page.optionB === "string" ? page.optionB : "Option B",
-        targetA: Number.isInteger(page.targetA) ? page.targetA : 0,
-        targetB: Number.isInteger(page.targetB) ? page.targetB : 0,
         imgs
       };
     })
@@ -520,14 +516,7 @@ function buildSlides() {
     const imgHtml = renderSlideImages(p.imgs || [], i);
     const hasImg = Boolean(imgHtml);
 
-    if (p.layout === 'choice') {
-      inner += `<div class="choice-page">
-      <p class="para-text">${escHtml(p.text || '')}</p>
-      <div style="display:flex;flex-direction:column;gap:12px;margin-top:24px;">
-      <button class="ebtn save" onclick="goTo(${Number(p.targetA)||0})">${escHtml(p.optionA||'Option A')}</button>
-      <button class="ebtn" onclick="goTo(${Number(p.targetB)||0})">${escHtml(p.optionB||'Option B')}</button>
-      </div></div>`;
-    } else if (p.layout === 'img-only' && hasImg) {
+    if (p.layout === 'img-only' && hasImg) {
       inner += `<div class="img-only">${imgHtml}</div>`;
     } else if (p.layout === 'img-above') {
       if (hasImg) inner += `<div class="img-above">${imgHtml}</div>`;
@@ -1019,8 +1008,7 @@ function renderEditorPage() {
     { val:'text', label:'text only' },
     { val:'img-only', label:'photo only' },
     { val:'img-above', label:'photo then text' },
-    { val:'img-below', label:'text then photo' },
-    { val:'choice', label:'choice page' }
+    { val:'img-below', label:'text then photo' }
   ];
 
   const layoutBtns = layouts.map(l =>
@@ -1095,18 +1083,7 @@ function renderEditorPage() {
       }
 
       ${
-        p.layout === 'choice'
-          ? `
-          <div>
-            <span class="el">choice text</span>
-            <textarea id="single-page-editor" class="ef-area big-editor">${escHtmlTextarea(p.text || '')}</textarea>
-          </div>
-          <div><span class="el">button a label</span><input id="choice-option-a" class="ef" value="${escAttr(p.optionA || '')}"></div>
-          <div><span class="el">button a target page index</span><input id="choice-target-a" class="ef" type="number" value="${p.targetA ?? 0}"></div>
-          <div><span class="el">button b label</span><input id="choice-option-b" class="ef" value="${escAttr(p.optionB || '')}"></div>
-          <div><span class="el">button b target page index</span><input id="choice-target-b" class="ef" type="number" value="${p.targetB ?? 0}"></div>
-          `
-          : p.layout !== 'img-only'
+        p.layout !== 'img-only'
           ? `
           <div>
             <span class="el">text</span>
@@ -1131,18 +1108,9 @@ function syncCurrentEditor() {
     textarea &&
     data.pages[editPage]
   ) {
-    data.pages[editPage].text = textarea.value;
+    data.pages[editPage].text =
+      textarea.value;
   }
-  const p=data.pages[editPage];
-  if(!p) return;
-  const oa=document.getElementById('choice-option-a');
-  const ob=document.getElementById('choice-option-b');
-  const ta=document.getElementById('choice-target-a');
-  const tb=document.getElementById('choice-target-b');
-  if(oa) p.optionA=oa.value;
-  if(ob) p.optionB=ob.value;
-  if(ta) p.targetA=parseInt(ta.value,10)||0;
-  if(tb) p.targetB=parseInt(tb.value,10)||0;
 }
 
 function prevEditPage() {
@@ -1209,10 +1177,6 @@ function addPage() {
   data.pages.push({
     layout:'text',
     text:'',
-    optionA:'Option A',
-    optionB:'Option B',
-    targetA:0,
-    targetB:0,
     imgs:[]
   });
 
