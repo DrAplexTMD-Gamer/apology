@@ -57,6 +57,22 @@ body.content-ready.arrow-ready #slide-cover.active .next-arrow-hint .arrow-path{
 .img-above .image-grid .slide-img,.img-below .image-grid .slide-img{margin:0;}
 .img-only .slide-img{max-height:70vh;}
 .img-only .image-grid .slide-img{height:min(34vh,280px);}
+.video-slide{padding:1.5rem 1.5rem calc(5rem + env(safe-area-inset-bottom));}
+.video-slide .slide-inner{max-width:min(100%,1080px);overflow:visible;}
+.video-only{width:100%;display:flex;align-items:center;justify-content:center;}
+.video-player{position:relative;width:min(100%,1040px);max-height:calc(100svh - 8rem);aspect-ratio:16/9;background:#080706;border-radius:4px;overflow:hidden;box-shadow:0 18px 60px rgba(58,53,48,0.18);isolation:isolate;}
+.video-player:fullscreen{width:100vw;height:100vh;max-height:none;border-radius:0;background:#000;}
+.video-player:fullscreen .slide-video{height:100vh;}
+.slide-video{display:block;width:100%;height:100%;object-fit:contain;background:#080706;}
+.video-controls{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:12px;padding:44px 16px 16px;background:linear-gradient(to top,rgba(0,0,0,0.72),rgba(0,0,0,0));opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity 0.24s ease,transform 0.24s ease;z-index:2;}
+.video-player.controls-visible .video-controls{opacity:1;transform:translateY(0);pointer-events:auto;}
+.video-btn{flex:0 0 auto;width:42px;height:42px;border-radius:50%;border:1px solid rgba(245,241,235,0.34);background:rgba(20,18,16,0.58);color:#f5f1eb;display:grid;place-items:center;font-family:'Jost',sans-serif;font-size:17px;line-height:1;cursor:pointer;backdrop-filter:blur(8px);}
+.video-btn:hover{background:rgba(245,241,235,0.16);}
+.video-timebar{flex:1;min-width:0;height:28px;background:transparent;cursor:pointer;appearance:none;-webkit-appearance:none;}
+.video-timebar::-webkit-slider-runnable-track{height:4px;border-radius:999px;background:linear-gradient(to right,#f5f1eb 0%,#f5f1eb var(--video-progress,0%),rgba(245,241,235,0.34) var(--video-progress,0%),rgba(245,241,235,0.34) 100%);}
+.video-timebar::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#f5f1eb;border:none;margin-top:-6px;box-shadow:0 2px 8px rgba(0,0,0,0.35);}
+.video-timebar::-moz-range-track{height:4px;border-radius:999px;background:linear-gradient(to right,#f5f1eb 0%,#f5f1eb var(--video-progress,0%),rgba(245,241,235,0.34) var(--video-progress,0%),rgba(245,241,235,0.34) 100%);}
+.video-timebar::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#f5f1eb;border:none;box-shadow:0 2px 8px rgba(0,0,0,0.35);}
 #slide-end .sig{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:1.5rem;color:#9c8f82;font-style:italic;}
 #slide-end .rule{width:32px;height:1px;background:#c8bfb5;margin:1.4rem auto;}
 #slide-end .closing-line{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:1.05rem;line-height:1.8;color:#3a3530;font-style:italic;margin-bottom:1.35rem;}
@@ -191,6 +207,8 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
 .photo-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:8px;margin:6px 0 8px;}
 .photo-item{display:flex;flex-direction:column;gap:4px;align-items:flex-start;}
 .photo-preview{width:100%;height:86px;object-fit:cover;border-radius:2px;}
+.video-edit-preview{width:100%;aspect-ratio:16/9;background:#080706;border-radius:3px;overflow:hidden;margin:6px 0 8px;}
+.video-edit-preview video{display:block;width:100%;height:100%;object-fit:contain;background:#080706;}
 .upload-label{font-family:'Jost',sans-serif;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#9c8f82;border:1px dashed #c8bfb5;border-radius:2px;padding:7px 12px;cursor:pointer;display:inline-block;transition:background 0.2s;}
 .upload-label:hover{background:#ece7df;}
 .add-btn{font-family:'Jost',sans-serif;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#9c8f82;background:transparent;border:1px dashed #c8bfb5;border-radius:2px;cursor:pointer;padding:8px;width:100%;transition:background 0.2s;}
@@ -264,6 +282,10 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
   .img-below .slide-img{margin-top:1.15rem;}
   .img-above .image-grid{margin-bottom:1.15rem;}
   .img-below .image-grid{margin-top:1.15rem;}
+  .video-slide{padding:0.85rem 0.75rem calc(5.2rem + env(safe-area-inset-bottom));}
+  .video-player{max-height:calc(100svh - 6.3rem);}
+  .video-controls{gap:8px;padding:38px 10px 12px;}
+  .video-btn{width:40px;height:40px;}
   #nav{bottom:calc(1rem + env(safe-area-inset-bottom));gap:0.85rem;max-width:calc(100vw - 7rem);}
   #dots{display:flex;align-items:center;gap:0.85rem;overflow-x:auto;padding:12px 2px;scrollbar-width:none;}
   #dots::-webkit-scrollbar{display:none;}
@@ -293,7 +315,7 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .slide,.nav-dot,#arrow-prev,#arrow-next,#edit-trigger,.layout-opt,.upload-label,.add-btn,.ebtn{transition:none;}
+  .slide,.nav-dot,#arrow-prev,#arrow-next,#edit-trigger,.layout-opt,.upload-label,.add-btn,.ebtn,.video-controls{transition:none;}
   .slide.active .slide-inner > *,#nav,#edit-trigger,#loader,.loader-ring,.next-arrow-hint,.next-arrow-hint .arrow-path,.slide.active.has-scroll .scroll-cue,.scroll-cue-arrow{animation:none;opacity:1;filter:none;}
 }
 </style>
@@ -416,20 +438,22 @@ body.content-ready #edit-trigger{visibility:visible;animation:edit-pop 0.9s cubi
 const PASS = "dorinireallyloveyou";
 // ──────────────────────────────────────────────────────────
 
-const KEY = "apology_photos_v1";
-const VALID_LAYOUTS = ["text", "img-only", "img-above", "img-below"];
+const VALID_LAYOUTS = ["text", "img-only", "img-above", "img-below", "video-only"];
 const SAFE_IMAGE_RE = /^data:image\/(?:png|jpe?g|gif|webp|bmp|avif);base64,/i;
+const SAFE_VIDEO_RE = /^data:video\/[a-z0-9.+-]+;base64,/i;
 const MAX_IMAGES_PER_PAGE = 8;
 const MAX_IMAGE_DIMENSION = 1600;
 const IMAGE_QUALITY = 0.86;
+const MAX_VIDEO_BYTES = 120 * 1024 * 1024;
+const VIDEO_CONTROL_HIDE_DELAY = 1800;
 
 const defaultData = {
   name: "Her Name",
   sig: "— you know who",
   closeLine: "thank you for reading this",
   pages: [
-    { layout: "text", text: "Write your first paragraph here. Each page can have text, a photo, or both.", imgs: [] },
-    { layout: "text", text: "And your second thought, whenever you're ready.", imgs: [] }
+    { layout: "text", text: "Write your first paragraph here. Each page can have text, a photo, or both.", imgs: [], video: "" },
+    { layout: "text", text: "And your second thought, whenever you're ready.", imgs: [], video: "" }
   ]
 };
 
@@ -458,6 +482,7 @@ let coverArrowTimer = null;
 let lightboxImages = [];
 let lightboxIndex = 0;
 let lightboxTouchX = null;
+let videoControlTimers = new WeakMap();
 let ambienceStarted = false;
 let ambienceCtx = null;
 let ambienceTimer = null;
@@ -480,11 +505,13 @@ function normalizeData(value) {
       const page = p && typeof p === "object" ? p : {};
       const layout = VALID_LAYOUTS.includes(page.layout) ? page.layout : "text";
       const imgs = normalizeImages(page);
+      const video = safeVideoSrc(page.video);
 
       return {
         layout,
         text: typeof page.text === "string" ? page.text : "",
-        imgs
+        imgs,
+        video: video || ""
       };
     })
   };
@@ -508,23 +535,29 @@ function buildSlides() {
 
   data.pages.forEach((p, i) => {
     const div = document.createElement('div');
-    div.className = 'slide dyn-slide';
+    div.className = 'slide dyn-slide' + (p.layout === 'video-only' ? ' video-slide' : '');
     let inner = '<div class="slide-inner">';
-    inner += `<p class="pg-label">${String(i + 1).padStart(2, '0')}</p>`;
 
     const hasText = p.text && p.text.trim();
     const imgHtml = renderSlideImages(p.imgs || [], i);
     const hasImg = Boolean(imgHtml);
 
-    if (p.layout === 'img-only' && hasImg) {
+    if (p.layout === 'video-only') {
+      const videoHtml = renderSlideVideo(p.video);
+      if (videoHtml) inner += `<div class="video-only">${videoHtml}</div>`;
+    } else if (p.layout === 'img-only' && hasImg) {
+      inner += `<p class="pg-label">${String(i + 1).padStart(2, '0')}</p>`;
       inner += `<div class="img-only">${imgHtml}</div>`;
     } else if (p.layout === 'img-above') {
+      inner += `<p class="pg-label">${String(i + 1).padStart(2, '0')}</p>`;
       if (hasImg) inner += `<div class="img-above">${imgHtml}</div>`;
       if (hasText) inner += `<p class="para-text">${escHtml(p.text)}</p>`;
     } else if (p.layout === 'img-below') {
+      inner += `<p class="pg-label">${String(i + 1).padStart(2, '0')}</p>`;
       if (hasText) inner += `<p class="para-text">${escHtml(p.text)}</p>`;
       if (hasImg) inner += `<div class="img-below">${imgHtml}</div>`;
     } else {
+      inner += `<p class="pg-label">${String(i + 1).padStart(2, '0')}</p>`;
       if (hasText) inner += `<p class="para-text">${escHtml(p.text)}</p>`;
     }
 
@@ -539,19 +572,9 @@ function buildSlides() {
   document.getElementById('display-close').textContent = data.closeLine || "";
 
   allSlides = Array.from(document.querySelectorAll('.slide'));
-  const savedPage =
-  parseInt(localStorage.getItem('lastPage'));
-
-if (
-  !isNaN(savedPage) &&
-  savedPage >= 0 &&
-  savedPage < allSlides.length
-){
-  current = savedPage;
-} else {
   current = 0;
-}
   buildDots();
+  setupVideoPlayers();
   document.body.classList.add('content-ready');
   showSlide(current, false);
   scheduleCoverArrowReady();
@@ -576,6 +599,10 @@ function safeImgSrc(src) {
   return typeof src === 'string' && SAFE_IMAGE_RE.test(src) ? src : null;
 }
 
+function safeVideoSrc(src) {
+  return typeof src === 'string' && SAFE_VIDEO_RE.test(src) ? src : null;
+}
+
 function renderSlideImages(images, pageIndex) {
   const safeImages = images.map(safeImgSrc).filter(Boolean);
   if (!safeImages.length) return '';
@@ -586,6 +613,22 @@ function renderSlideImages(images, pageIndex) {
   return `<div class="image-grid">${safeImages.map((src, photoIndex) =>
     `<button class="slide-photo-btn" onclick="openLightbox(${pageIndex},${photoIndex})" aria-label="Open photo"><img class="slide-img" src="${escAttr(src)}" alt="" /></button>`
   ).join('')}</div>`;
+}
+
+function renderSlideVideo(src) {
+  const safeSrc = safeVideoSrc(src);
+  if (!safeSrc) return '';
+
+  return `
+    <div class="video-player" data-video-player tabindex="0">
+      <video class="slide-video" src="${escAttr(safeSrc)}" preload="metadata" playsinline webkit-playsinline></video>
+      <div class="video-controls" aria-label="Video controls">
+        <button type="button" class="video-btn video-play" aria-label="Play video">▶</button>
+        <input class="video-timebar" type="range" min="0" max="1000" step="1" value="0" aria-label="Video timeline">
+        <button type="button" class="video-btn video-fullscreen" aria-label="Fullscreen video">⛶</button>
+      </div>
+    </div>
+  `;
 }
 
 function isLightboxOpen() {
@@ -624,6 +667,215 @@ function updateLightbox() {
   count.textContent = hasMany ? `${lightboxIndex + 1} / ${lightboxImages.length}` : '';
   document.querySelector('.lb-prev').style.display = hasMany ? 'block' : 'none';
   document.querySelector('.lb-next').style.display = hasMany ? 'block' : 'none';
+}
+
+function setupVideoPlayers() {
+  document.querySelectorAll('[data-video-player]').forEach(player => {
+    const video = player.querySelector('.slide-video');
+    const playBtn = player.querySelector('.video-play');
+    const range = player.querySelector('.video-timebar');
+    const fullscreenBtn = player.querySelector('.video-fullscreen');
+
+    if (!video || !playBtn || !range || !fullscreenBtn) return;
+
+    player.classList.add('paused');
+    updateVideoPlayButton(player);
+    updateVideoProgress(player);
+    showVideoControls(player);
+
+    player.addEventListener('pointerdown', e => {
+      if (e.target.closest('.video-controls')) return;
+      showVideoControls(player);
+    });
+
+    player.addEventListener('pointermove', () => {
+      showVideoControls(player);
+    }, { passive: true });
+
+    player.addEventListener('keydown', e => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        toggleVideoPlay(player);
+      }
+
+      if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        toggleVideoFullscreen(player);
+      }
+    });
+
+    playBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleVideoPlay(player);
+      releaseVideoControlFocus(e.target);
+    });
+
+    fullscreenBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleVideoFullscreen(player);
+      releaseVideoControlFocus(e.target);
+    });
+
+    range.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      range.dataset.seeking = 'true';
+      showVideoControls(player);
+    });
+
+    range.addEventListener('input', e => {
+      e.stopPropagation();
+      seekVideo(player);
+    });
+
+    ['pointerup', 'pointercancel', 'change'].forEach(eventName => {
+      range.addEventListener(eventName, e => {
+        e.stopPropagation();
+        seekVideo(player);
+        delete range.dataset.seeking;
+        releaseVideoControlFocus(range);
+        showVideoControls(player);
+      });
+    });
+
+    ['loadedmetadata', 'durationchange', 'timeupdate'].forEach(eventName => {
+      video.addEventListener(eventName, () => updateVideoProgress(player));
+    });
+
+    video.addEventListener('play', () => {
+      player.classList.remove('paused');
+      updateVideoPlayButton(player);
+      showVideoControls(player);
+    });
+
+    video.addEventListener('pause', () => {
+      player.classList.add('paused');
+      updateVideoPlayButton(player);
+      showVideoControls(player);
+    });
+
+    video.addEventListener('ended', () => {
+      player.classList.add('paused');
+      updateVideoPlayButton(player);
+      showVideoControls(player);
+    });
+  });
+}
+
+function showVideoControls(player) {
+  const previousTimer = videoControlTimers.get(player);
+  const range = player.querySelector('.video-timebar');
+
+  clearTimeout(previousTimer);
+  player.classList.add('controls-visible');
+
+  if (range && range.dataset.seeking === 'true') return;
+
+  const timer = setTimeout(() => {
+    player.classList.remove('controls-visible');
+  }, VIDEO_CONTROL_HIDE_DELAY);
+
+  videoControlTimers.set(player, timer);
+}
+
+function releaseVideoControlFocus(control) {
+  if (control && typeof control.blur === 'function') {
+    control.blur();
+  }
+}
+
+function toggleVideoPlay(player) {
+  const video = player.querySelector('.slide-video');
+  if (!video) return;
+
+  showVideoControls(player);
+
+  if (video.paused || video.ended) {
+    const playResult = video.play();
+    if (playResult && typeof playResult.catch === 'function') {
+      playResult.catch(() => {
+        player.classList.add('paused');
+        updateVideoPlayButton(player);
+        showVideoControls(player);
+      });
+    }
+  } else {
+    video.pause();
+  }
+}
+
+function updateVideoPlayButton(player) {
+  const video = player.querySelector('.slide-video');
+  const playBtn = player.querySelector('.video-play');
+  if (!video || !playBtn) return;
+
+  const isPaused = video.paused || video.ended;
+  playBtn.textContent = isPaused ? '▶' : '❚❚';
+  playBtn.setAttribute('aria-label', isPaused ? 'Play video' : 'Pause video');
+}
+
+function updateVideoProgress(player) {
+  const video = player.querySelector('.slide-video');
+  const range = player.querySelector('.video-timebar');
+  if (!video || !range || range.dataset.seeking === 'true') return;
+
+  const duration = video.duration;
+  const progress = Number.isFinite(duration) && duration > 0
+    ? Math.min(100, Math.max(0, (video.currentTime / duration) * 100))
+    : 0;
+
+  range.value = Math.round(progress * 10);
+  range.style.setProperty('--video-progress', `${progress}%`);
+}
+
+function seekVideo(player) {
+  const video = player.querySelector('.slide-video');
+  const range = player.querySelector('.video-timebar');
+  if (!video || !range) return;
+
+  const duration = video.duration;
+  if (!Number.isFinite(duration) || duration <= 0) return;
+
+  const max = Number(range.max) || 1000;
+  const progress = Math.min(100, Math.max(0, (Number(range.value) / max) * 100));
+
+  video.currentTime = (progress / 100) * duration;
+  range.style.setProperty('--video-progress', `${progress}%`);
+  showVideoControls(player);
+}
+
+async function toggleVideoFullscreen(player) {
+  const video = player.querySelector('.slide-video');
+  showVideoControls(player);
+
+  try {
+    if (document.fullscreenElement === player && document.exitFullscreen) {
+      await document.exitFullscreen();
+      return;
+    }
+
+    if (player.requestFullscreen) {
+      await player.requestFullscreen();
+      return;
+    }
+
+    if (video && video.webkitEnterFullscreen) {
+      video.webkitEnterFullscreen();
+      return;
+    }
+
+    if (video && video.webkitRequestFullscreen) {
+      video.webkitRequestFullscreen();
+    }
+  } catch {
+    showVideoControls(player);
+  }
+}
+
+function pauseInactiveVideos(activeIndex) {
+  allSlides.forEach((slide, index) => {
+    if (index === activeIndex) return;
+    slide.querySelectorAll('video').forEach(video => video.pause());
+  });
 }
 
 function buildDots() {
@@ -679,8 +931,7 @@ function showSlide(idx, animate = true) {
   if (animate) { activationTimer = setTimeout(() => { if (allSlides[idx]) allSlides[idx].classList.add('active'); }, 50); }
   else { allSlides[idx].classList.add('active'); }
   current = idx;
-
-  localStorage.setItem('lastPage', current);
+  pauseInactiveVideos(idx);
 
   buildDots();
 
@@ -900,6 +1151,7 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  if (e.target.closest && e.target.closest('.video-player')) return;
   if (document.getElementById('edit-modal').style.display === 'flex') return;
   if (e.key === 'ArrowRight' || e.key === 'ArrowDown') go(1);
   if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') go(-1);
@@ -987,7 +1239,8 @@ function renderEditorPage() {
     data.pages.push({
       layout:'text',
       text:'',
-      imgs:[]
+      imgs:[],
+      video:''
     });
   }
 
@@ -1008,7 +1261,8 @@ function renderEditorPage() {
     { val:'text', label:'text only' },
     { val:'img-only', label:'photo only' },
     { val:'img-above', label:'photo then text' },
-    { val:'img-below', label:'text then photo' }
+    { val:'img-below', label:'text then photo' },
+    { val:'video-only', label:'video only' }
   ];
 
   const layoutBtns = layouts.map(l =>
@@ -1023,6 +1277,7 @@ function renderEditorPage() {
   const imgs = (p.imgs || [])
     .map(safeImgSrc)
     .filter(Boolean);
+  const video = safeVideoSrc(p.video);
 
   container.innerHTML = `
     <div class="page-card">
@@ -1035,7 +1290,7 @@ function renderEditorPage() {
       </div>
 
       ${
-        p.layout !== 'text'
+        p.layout !== 'text' && p.layout !== 'video-only'
           ? `
           <div>
             <span class="el">
@@ -1083,7 +1338,40 @@ function renderEditorPage() {
       }
 
       ${
-        p.layout !== 'img-only'
+        p.layout === 'video-only'
+          ? `
+          <div>
+            <span class="el">video</span>
+
+            ${
+              video
+                ? `
+                <div class="video-edit-preview">
+                  <video src="${escAttr(video)}" preload="metadata" playsinline webkit-playsinline muted></video>
+                </div>
+                <button class="rm-btn"
+                        onclick="removeVideo(${editPage})">
+                  remove video
+                </button>
+                `
+                : ''
+            }
+
+            <label class="upload-label">
+              ${video ? 'replace video' : 'upload video'}
+              <input
+                type="file"
+                accept="video/*"
+                style="display:none"
+                onchange="handleVideo(${editPage},this)">
+            </label>
+          </div>
+          `
+          : ''
+      }
+
+      ${
+        p.layout !== 'img-only' && p.layout !== 'video-only'
           ? `
           <div>
             <span class="el">text</span>
@@ -1164,6 +1452,13 @@ function removeImg(i, photoIndex) {
   renderEditorPage();
 }
 
+function removeVideo(i) {
+  syncCurrentEditor();
+  if (!data.pages[i]) return;
+  data.pages[i].video = '';
+  renderEditorPage();
+}
+
 // function removePage(i) {
 //   if (data.pages.length <= 1) return;
 //   syncCurrentEditor();
@@ -1177,7 +1472,8 @@ function addPage() {
   data.pages.push({
     layout:'text',
     text:'',
-    imgs:[]
+    imgs:[],
+    video:''
   });
 
   editPage = data.pages.length - 1;
@@ -1224,6 +1520,85 @@ async function handleImg(i, input) {
     input.value = '';
     renderEditorPage();
   }
+}
+
+async function handleVideo(i, input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  syncCurrentEditor();
+
+  if (!isVideoFile(file)) {
+    input.value = '';
+    alert('Please choose a video file.');
+    return;
+  }
+
+  if (file.size > MAX_VIDEO_BYTES) {
+    input.value = '';
+    alert(`Please choose a video under ${formatBytes(MAX_VIDEO_BYTES)}.`);
+    return;
+  }
+
+  const page = data.pages[i];
+  if (!page) return;
+
+  input.disabled = true;
+
+  try {
+    let video = await readFileAsDataUrl(file);
+    const guessedType = guessVideoMime(file.name);
+
+    if (!safeVideoSrc(video) && guessedType) {
+      video = video.replace(/^data:[^;]*;base64,/i, `data:${guessedType};base64,`);
+    }
+
+    if (!safeVideoSrc(video)) {
+      throw new Error('Unsupported video data');
+    }
+
+    page.layout = 'video-only';
+    page.video = video;
+  } catch(e) {
+    alert('Could not process that video. Try an MP4, WebM, MOV, or another browser-supported video.');
+  } finally {
+    input.disabled = false;
+    input.value = '';
+    renderEditorPage();
+  }
+}
+
+function isVideoFile(file) {
+  return /^video\//i.test(file.type) || Boolean(guessVideoMime(file.name));
+}
+
+function guessVideoMime(name) {
+  const ext = String(name || '').split('.').pop().toLowerCase();
+  const types = {
+    mp4: 'video/mp4',
+    m4v: 'video/x-m4v',
+    mov: 'video/quicktime',
+    webm: 'video/webm',
+    ogv: 'video/ogg',
+    ogg: 'video/ogg'
+  };
+
+  return types[ext] || '';
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatBytes(bytes) {
+  const mb = bytes / (1024 * 1024);
+  return `${Math.round(mb)} MB`;
 }
 
 function compressImage(file) {

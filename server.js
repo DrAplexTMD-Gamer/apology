@@ -3,15 +3,15 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { URLSearchParams } = require('url');
-const { createClient } = require('@supabase/supabase-js');
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = __dirname;
+const MAX_BODY_BYTES = 180_000_000;
 
 const DATA_ROOT = '/tmp';
 
 const PAGE_FILE = path.join(ROOT, 'apology_1.html');
-const CONTENT_FILE = path.join(DATA_ROOT, 'content.json');
+const CONTENT_FILE = process.env.CONTENT_FILE || path.join(ROOT, 'content.json');
 const CODES_FILE = path.join(DATA_ROOT, 'access-codes.json');
 const STATE_FILE = path.join(DATA_ROOT, 'access-state.json');
 
@@ -19,10 +19,17 @@ const SESSION_COOKIE = 'apology_session';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const MASTER_CODE = process.env.MASTER_CODE || '';
-const supabase = createClient(
-  process.env.SUPABASE_URL,
+const HAS_SUPABASE_CONFIG = Boolean(
+  process.env.SUPABASE_URL &&
   process.env.SUPABASE_KEY
 );
+
+const supabase = HAS_SUPABASE_CONFIG
+  ? require('@supabase/supabase-js').createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_KEY
+    )
+  : null;
 
 if (!fs.existsSync(CODES_FILE)) {
   writeJson(CODES_FILE, []);
@@ -48,6 +55,10 @@ function writeJson(file, value) {
 }
 
 async function getContent() {
+  if (!supabase) {
+    return readJson(CONTENT_FILE, {});
+  }
+
   const { data, error } = await supabase
     .from('site_content')
     .select('content')
@@ -60,6 +71,11 @@ async function getContent() {
 }
 
 async function saveContent(content) {
+  if (!supabase) {
+    writeJson(CONTENT_FILE, content);
+    return;
+  }
+
   const { error } = await supabase
     .from('site_content')
     .update({ content })
@@ -143,6 +159,27 @@ function redirect(res, location, headers = {}) {
   });
 
   res.end();
+}
+
+function serveSitePage(res) {
+  fs.readFile(PAGE_FILE, (err, data) => {
+    if (err) {
+      send(
+        res,
+        500,
+        'Could not load apology_1.html.'
+      );
+
+      return;
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store'
+    });
+
+    res.end(data);
+  });
 }
 
 function escapeHtml(value) {
@@ -238,7 +275,7 @@ function collectBody(req) {
     req.on('data', chunk => {
       body += chunk;
 
-      if (body.length > 50_000_000) {
+      if (body.length > MAX_BODY_BYTES) {
         req.destroy();
         reject(new Error('Body too large'));
       }
@@ -325,71 +362,16 @@ function redeemCode(code) {
 
 const server = http.createServer(async (req, res) => {
   try {
-    if (req.method === 'GET' && req.url === '/') {
-      if (hasSession(req)) {
-        redirect(res, '/site');
-      } else {
-        send(res, 200, loginPage());
-      }
-
-      return;
-    }
-
-    if (req.method === 'GET' && req.url === '/site') {
-      if (!hasSession(req)) {
-        redirect(res, '/');
-        return;
-      }
-
-      const token = parseCookies(req)[SESSION_COOKIE];
-      const state = getState();
-
-      delete state.sessions[token];
-
-      writeJson(STATE_FILE, state);
-
-      fs.readFile(PAGE_FILE, (err, data) => {
-        if (err) {
-          send(
-            res,
-            500,
-            'Could not load apology_1.html.'
-          );
-
-          return;
-        }
-
-        res.writeHead(200, {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-store',
-          'Set-Cookie':
-            `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`
-        });
-
-        res.end(data);
-      });
-
+    if (
+      req.method === 'GET' &&
+      (req.url === '/' || req.url === '/site')
+    ) {
+      serveSitePage(res);
       return;
     }
 
     if (req.method === 'POST' && req.url === '/access') {
-      const body = await collectBody(req);
-
-      const code =
-        new URLSearchParams(body).get('code')?.trim() || '';
-
-      const result = redeemCode(code);
-
-      if (!result.ok) {
-        send(res, 401, loginPage(result.error));
-        return;
-      }
-
-      redirect(res, '/site', {
-        'Set-Cookie':
-          `${SESSION_COOKIE}=${encodeURIComponent(result.token)}; HttpOnly; SameSite=Lax; Path=/`
-      });
-
+      redirect(res, '/');
       return;
     }
 
