@@ -440,11 +440,11 @@ const PASS = "dorinireallyloveyou";
 
 const VALID_LAYOUTS = ["text", "img-only", "img-above", "img-below", "video-only"];
 const SAFE_IMAGE_RE = /^data:image\/(?:png|jpe?g|gif|webp|bmp|avif);base64,/i;
-const SAFE_VIDEO_RE = /^data:video\/[a-z0-9.+-]+;base64,/i;
+const SAFE_VIDEO_RE = /^(?:data:video\/[a-z0-9.+-]+;base64,|https?:\/\/[^\s"'<>]+$)/i;
 const MAX_IMAGES_PER_PAGE = 8;
 const MAX_IMAGE_DIMENSION = 1600;
 const IMAGE_QUALITY = 0.86;
-const MAX_VIDEO_BYTES = 120 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
 const VIDEO_CONTROL_HIDE_DELAY = 1800;
 
 const defaultData = {
@@ -462,10 +462,16 @@ let data = null;
 (async () => {
   try {
     const r = await fetch('/content');
+    if (!r.ok) throw new Error(`Content request failed (${r.status})`);
+
     const serverData = await r.json();
+    if (serverData && serverData._warning) {
+      console.warn(serverData._warning);
+    }
 
     data = normalizeData(serverData);
-  } catch {
+  } catch(e) {
+    console.error(e);
     data = cloneDefaultData();
   }
 
@@ -1546,26 +1552,41 @@ async function handleVideo(i, input) {
   input.disabled = true;
 
   try {
-    let video = await readFileAsDataUrl(file);
-    const guessedType = guessVideoMime(file.name);
-
-    if (!safeVideoSrc(video) && guessedType) {
-      video = video.replace(/^data:[^;]*;base64,/i, `data:${guessedType};base64,`);
-    }
-
-    if (!safeVideoSrc(video)) {
-      throw new Error('Unsupported video data');
-    }
+    const video = await uploadVideoFile(file);
 
     page.layout = 'video-only';
     page.video = video;
   } catch(e) {
-    alert('Could not process that video. Try an MP4, WebM, MOV, or another browser-supported video.');
+    alert(e.message || 'Could not upload that video. Try an MP4, WebM, MOV, or another browser-supported video.');
   } finally {
     input.disabled = false;
     input.value = '';
     renderEditorPage();
   }
+}
+
+async function uploadVideoFile(file) {
+  const res = await fetch(`/upload-video?name=${encodeURIComponent(file.name || 'video')}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': file.type || guessVideoMime(file.name) || 'video/mp4'
+    },
+    body: file
+  });
+
+  const text = await res.text();
+  const payload = parseJsonMaybe(text);
+
+  if (!res.ok || !payload || !payload.url) {
+    const message =
+      (payload && (payload.error || payload.hint)) ||
+      summarizeTextResponse(text) ||
+      `Video upload failed (${res.status}).`;
+
+    throw new Error(message);
+  }
+
+  return payload.url;
 }
 
 function isVideoFile(file) {
@@ -1584,16 +1605,6 @@ function guessVideoMime(name) {
   };
 
   return types[ext] || '';
-}
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = e => resolve(e.target.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 function formatBytes(bytes) {
@@ -1671,12 +1682,18 @@ async function saveDataToStorage() {
     });
 
     const text = await res.text();
+    const payload = parseJsonMaybe(text);
 
     console.log('SAVE STATUS:', res.status);
-    console.log('SAVE RESPONSE:', text);
+    console.log('SAVE RESPONSE:', payload || text);
 
     if (!res.ok) {
-      alert('Save failed.\n\n' + text);
+      const message =
+        (payload && (payload.error || payload.message || payload.hint)) ||
+        summarizeTextResponse(text) ||
+        `Server returned ${res.status}.`;
+
+      alert('Save failed.\n\n' + message);
       return false;
     }
 
@@ -1686,6 +1703,28 @@ async function saveDataToStorage() {
     alert('Could not save changes.');
     return false;
   }
+}
+
+function parseJsonMaybe(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function summarizeTextResponse(text) {
+  const value = String(text || '').trim();
+  if (!value) return '';
+
+  if (/<!doctype html|<html/i.test(value)) {
+    const title = value.match(/<title>([\s\S]*?)<\/title>/i);
+    return title
+      ? title[1].replace(/\s+/g, ' ').trim()
+      : 'The server returned an HTML error page.';
+  }
+
+  return value.slice(0, 500);
 }
 
 function exportEditData() {

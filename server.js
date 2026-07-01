@@ -6,7 +6,11 @@ const { URLSearchParams } = require('url');
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = __dirname;
-const MAX_BODY_BYTES = 180_000_000;
+const MAX_BODY_BYTES = 45_000_000;
+const MAX_VIDEO_UPLOAD_BYTES = Number(
+  process.env.MAX_VIDEO_UPLOAD_BYTES || 150 * 1024 * 1024
+);
+const SUPABASE_TIMEOUT_MS = 12000;
 
 const DATA_ROOT = '/tmp';
 
@@ -14,22 +18,27 @@ const PAGE_FILE = path.join(ROOT, 'apology_1.html');
 const CONTENT_FILE = process.env.CONTENT_FILE || path.join(ROOT, 'content.json');
 const CODES_FILE = path.join(DATA_ROOT, 'access-codes.json');
 const STATE_FILE = path.join(DATA_ROOT, 'access-state.json');
+const VIDEO_BUCKET = process.env.SUPABASE_VIDEO_BUCKET || 'site-videos';
 
 const SESSION_COOKIE = 'apology_session';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const MASTER_CODE = process.env.MASTER_CODE || '';
-const HAS_SUPABASE_CONFIG = Boolean(
-  process.env.SUPABASE_URL &&
-  process.env.SUPABASE_KEY
-);
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').trim();
+const SUPABASE_KEY = (process.env.SUPABASE_KEY || '').trim();
+const HAS_SUPABASE_CONFIG = Boolean(SUPABASE_URL && SUPABASE_KEY);
+let supabase = null;
 
-const supabase = HAS_SUPABASE_CONFIG
-  ? require('@supabase/supabase-js').createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_KEY
-    )
-  : null;
+if (HAS_SUPABASE_CONFIG) {
+  try {
+    supabase = require('@supabase/supabase-js').createClient(
+      SUPABASE_URL,
+      SUPABASE_KEY
+    );
+  } catch (e) {
+    console.error('Supabase client could not be created:', e);
+  }
+}
 
 if (!fs.existsSync(CODES_FILE)) {
   writeJson(CODES_FILE, []);
@@ -54,34 +63,114 @@ function writeJson(file, value) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n');
 }
 
+function timeoutAfter(ms, label) {
+  return new Promise((_, reject) => {
+    setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms}ms`)),
+      ms
+    );
+  });
+}
+
+async function withTimeout(promise, label) {
+  return Promise.race([
+    promise,
+    timeoutAfter(SUPABASE_TIMEOUT_MS, label)
+  ]);
+}
+
 async function getContent() {
   if (!supabase) {
     return readJson(CONTENT_FILE, {});
   }
 
-  const { data, error } = await supabase
-    .from('site_content')
-    .select('content')
-    .eq('id', 1)
-    .single();
+  const { data, error } = await withTimeout(
+    supabase
+      .from('site_content')
+      .select('content')
+      .eq('id', 1)
+      .single(),
+    'Supabase content load'
+  );
 
   if (error) throw error;
+
+  writeJson(CONTENT_FILE, data.content);
 
   return data.content;
 }
 
 async function saveContent(content) {
+  writeJson(CONTENT_FILE, content);
+
   if (!supabase) {
-    writeJson(CONTENT_FILE, content);
     return;
   }
 
-  const { error } = await supabase
-    .from('site_content')
-    .update({ content })
-    .eq('id', 1);
+  const { error } = await withTimeout(
+    supabase
+      .from('site_content')
+      .update({ content })
+      .eq('id', 1),
+    'Supabase content save'
+  );
 
   if (error) throw error;
+}
+
+function isVideoContentType(type) {
+  return /^video\/[a-z0-9.+-]+$/i.test(String(type || ''));
+}
+
+function extensionForVideo(type, filename = '') {
+  const fromName = path.extname(filename).toLowerCase().replace(/[^.a-z0-9]/g, '');
+  if (/^\.(mp4|m4v|mov|webm|ogv|ogg)$/i.test(fromName)) return fromName;
+
+  const map = {
+    'video/mp4': '.mp4',
+    'video/x-m4v': '.m4v',
+    'video/quicktime': '.mov',
+    'video/webm': '.webm',
+    'video/ogg': '.ogv'
+  };
+
+  return map[String(type || '').toLowerCase()] || '.mp4';
+}
+
+async function uploadVideo(buffer, type, filename) {
+  if (!supabase) {
+    const err = new Error('Supabase is not configured, so videos cannot be uploaded.');
+    err.statusCode = 503;
+    throw err;
+  }
+
+  const ext = extensionForVideo(type, filename);
+  const objectPath = `videos/${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+
+  const { error } = await withTimeout(
+    supabase.storage
+      .from(VIDEO_BUCKET)
+      .upload(objectPath, buffer, {
+        contentType: type || 'video/mp4',
+        upsert: false
+      }),
+    'Supabase video upload'
+  );
+
+  if (error) throw error;
+
+  const { data } = supabase.storage
+    .from(VIDEO_BUCKET)
+    .getPublicUrl(objectPath);
+
+  if (!data || !data.publicUrl) {
+    throw new Error('Video uploaded, but no public URL was returned.');
+  }
+
+  return {
+    path: objectPath,
+    url: data.publicUrl
+  };
 }
 
 function getCodes() {
@@ -149,6 +238,10 @@ function sendJson(res, status, value) {
   });
 
   res.end(JSON.stringify(value, null, 2));
+}
+
+function publicError(e) {
+  return e && e.message ? e.message : 'Unknown server error';
 }
 
 function redirect(res, location, headers = {}) {
@@ -271,17 +364,63 @@ function adminPage(error = '', generatedCodes = []) {
 function collectBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
+    let tooLarge = false;
 
     req.on('data', chunk => {
+      if (tooLarge) return;
+
       body += chunk;
 
       if (body.length > MAX_BODY_BYTES) {
-        req.destroy();
-        reject(new Error('Body too large'));
+        tooLarge = true;
+        body = '';
+
+        const err = new Error(
+          `Request body is too large. Limit is ${Math.round(MAX_BODY_BYTES / 1024 / 1024)} MB.`
+        );
+        err.statusCode = 413;
+        reject(err);
+        req.pause();
       }
     });
 
-    req.on('end', () => resolve(body));
+    req.on('end', () => {
+      if (!tooLarge) resolve(body);
+    });
+    req.on('error', reject);
+  });
+}
+
+function collectBinaryBody(req, limitBytes) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    let tooLarge = false;
+
+    req.on('data', chunk => {
+      if (tooLarge) return;
+
+      size += chunk.length;
+
+      if (size > limitBytes) {
+        tooLarge = true;
+        chunks.length = 0;
+
+        const err = new Error(
+          `Video is too large. Limit is ${Math.round(limitBytes / 1024 / 1024)} MB.`
+        );
+        err.statusCode = 413;
+        reject(err);
+        req.pause();
+        return;
+      }
+
+      chunks.push(chunk);
+    });
+
+    req.on('end', () => {
+      if (!tooLarge) resolve(Buffer.concat(chunks));
+    });
     req.on('error', reject);
   });
 }
@@ -434,7 +573,53 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/content') {
-      sendJson(res, 200, await getContent());
+      try {
+        sendJson(res, 200, await getContent());
+      } catch (e) {
+        console.error('Content load failed:', e);
+        sendJson(res, 200, {
+          ...readJson(CONTENT_FILE, {}),
+          _warning: `Could not load latest Supabase content: ${publicError(e)}`
+        });
+      }
+
+      return;
+    }
+
+    if (
+      req.method === 'POST' &&
+      req.url.startsWith('/upload-video')
+    ) {
+      try {
+        const contentType = String(req.headers['content-type'] || '').split(';')[0].trim();
+
+        if (!isVideoContentType(contentType)) {
+          const err = new Error('Please upload a valid video file.');
+          err.statusCode = 415;
+          throw err;
+        }
+
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const filename = url.searchParams.get('name') || '';
+        const buffer = await collectBinaryBody(req, MAX_VIDEO_UPLOAD_BYTES);
+        const result = await uploadVideo(buffer, contentType, filename);
+
+        sendJson(res, 200, {
+          ok: true,
+          ...result
+        });
+      } catch (e) {
+        console.error('Video upload failed:', e);
+        sendJson(res, e.statusCode || 503, {
+          ok: false,
+          error: publicError(e),
+          hint:
+            e.statusCode === 413
+              ? 'Choose a smaller video, or increase MAX_VIDEO_UPLOAD_BYTES if your host can handle it.'
+              : `Make sure the Supabase Storage bucket "${VIDEO_BUCKET}" exists and is public.`
+        });
+      }
+
       return;
     }
 
@@ -442,13 +627,25 @@ const server = http.createServer(async (req, res) => {
       req.method === 'POST' &&
       req.url === '/save-content'
     ) {
-      const body = await collectBody(req);
+      try {
+        const body = await collectBody(req);
+        const parsed = JSON.parse(body);
 
-      const parsed = JSON.parse(body);
+        await saveContent(parsed);
+        sendJson(res, 200, { ok: true });
+      } catch (e) {
+        console.error('Content save failed:', e);
 
-      await saveContent(parsed);
-
-      sendJson(res, 200, { ok: true });
+        const status = e.statusCode || 503;
+        sendJson(res, status, {
+          ok: false,
+          error: publicError(e),
+          hint:
+            status === 413
+              ? 'The page data is too large. Remove some embedded photos or reduce photo sizes.'
+              : 'Check SUPABASE_URL and SUPABASE_KEY in Render, then redeploy.'
+        });
+      }
 
       return;
     }
@@ -456,6 +653,19 @@ const server = http.createServer(async (req, res) => {
     send(res, 404, 'Not found.');
   } catch (e) {
     console.error(e);
+
+    if (
+      req.url === '/content' ||
+      req.url === '/save-content' ||
+      req.url.startsWith('/upload-video')
+    ) {
+      sendJson(res, e.statusCode || 500, {
+        ok: false,
+        error: publicError(e)
+      });
+
+      return;
+    }
 
     send(res, 500, 'Server error.');
   }
