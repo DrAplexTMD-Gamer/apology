@@ -810,7 +810,6 @@ function toggleVideoPlay(player) {
   showVideoControls(player);
 
   if (video.paused || video.ended) {
-    if (!isVideoPlayerOnActiveSlide(player)) return;
     pauseAllVideosExcept(video);
     const playResult = video.play();
     if (playResult && typeof playResult.catch === 'function') {
@@ -872,8 +871,6 @@ function seekVideo(player) {
 }
 
 function toggleVideoFullscreen(player) {
-  if (!isVideoPlayerOnActiveSlide(player)) return;
-
   if (player.classList.contains('is-theater-mode')) {
     exitVideoTheaterMode(player);
     return;
@@ -892,10 +889,6 @@ function exitVideoTheaterMode(player) {
     document.body.classList.remove('video-theater-open');
   }
   showVideoControls(player);
-}
-
-function isVideoPlayerOnActiveSlide(player) {
-  return player && player.closest('.slide') === allSlides[current];
 }
 
 function pauseAllVideosExcept(exceptVideo) {
