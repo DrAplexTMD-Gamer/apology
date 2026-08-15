@@ -67,6 +67,7 @@ body.content-ready.arrow-ready #slide-cover.active .next-arrow-hint .arrow-path{
 .video-controls{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:12px;padding:44px 16px 16px;background:linear-gradient(to top,rgba(0,0,0,0.72),rgba(0,0,0,0));opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity 0.24s ease,transform 0.24s ease;z-index:2;}
 .video-player.controls-visible .video-controls{opacity:1;transform:translateY(0);pointer-events:auto;}
 .video-btn{position:relative;flex:0 0 auto;width:42px;height:42px;border-radius:50%;border:1px solid rgba(245,241,235,0.34);background:rgba(20,18,16,0.58);color:#f5f1eb;display:grid;place-items:center;font-family:'Jost',sans-serif;font-size:17px;line-height:1;cursor:pointer;backdrop-filter:blur(8px);}
+.video-controls .video-btn{pointer-events:auto;}
 .video-btn:hover{background:rgba(245,241,235,0.16);}
 .video-center-toggle{position:absolute;top:50%;left:50%;width:76px;height:76px;transform:translate(-50%,-50%) scale(0.9);border-radius:50%;border:1px solid rgba(245,241,235,0.42);background:rgba(12,10,8,0.68);color:#f5f1eb;display:grid;place-items:center;font-family:'Jost',sans-serif;font-size:29px;line-height:1;cursor:pointer;backdrop-filter:blur(10px);opacity:0;pointer-events:none;transition:opacity 0.18s ease,transform 0.18s ease;z-index:3;}
 .video-player.center-control-visible .video-center-toggle{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1);}
@@ -495,6 +496,7 @@ let lightboxImages = [];
 let lightboxIndex = 0;
 let lightboxTouchX = null;
 let videoControlTimers = new WeakMap();
+let videoPlaybackIntent = new WeakMap();
 let ambienceStarted = false;
 let ambienceCtx = null;
 let ambienceTimer = null;
@@ -692,6 +694,7 @@ function setupVideoPlayers() {
 
     if (!video || !playBtn || !centerBtn || !range || !fullscreenBtn) return;
 
+    videoPlaybackIntent.set(video, false);
     player.classList.add('paused');
     updateVideoPlayButton(player);
     updateVideoProgress(player);
@@ -759,18 +762,21 @@ function setupVideoPlayers() {
     });
 
     video.addEventListener('play', () => {
+      videoPlaybackIntent.set(video, true);
       player.classList.remove('paused');
       updateVideoPlayButton(player);
       showVideoControls(player, VIDEO_RESUME_HIDE_DELAY);
     });
 
     video.addEventListener('pause', () => {
+      videoPlaybackIntent.set(video, false);
       player.classList.add('paused');
       updateVideoPlayButton(player);
       showVideoControls(player);
     });
 
     video.addEventListener('ended', () => {
+      videoPlaybackIntent.set(video, false);
       player.classList.add('paused');
       updateVideoPlayButton(player);
       showVideoControls(player);
@@ -809,17 +815,27 @@ function toggleVideoPlay(player) {
 
   showVideoControls(player);
 
-  if (video.paused || video.ended) {
+  const wantsPlay = videoPlaybackIntent.has(video)
+    ? videoPlaybackIntent.get(video)
+    : !(video.paused || video.ended);
+
+  if (!wantsPlay) {
+    videoPlaybackIntent.set(video, true);
+    updateVideoPlayButton(player);
     const playResult = video.play();
     if (playResult && typeof playResult.catch === 'function') {
       playResult.catch(() => {
+        if (!videoPlaybackIntent.get(video)) return;
+        videoPlaybackIntent.set(video, false);
         player.classList.add('paused');
         updateVideoPlayButton(player);
         showVideoControls(player);
       });
     }
   } else {
+    videoPlaybackIntent.set(video, false);
     video.pause();
+    updateVideoPlayButton(player);
   }
 }
 
@@ -829,7 +845,9 @@ function updateVideoPlayButton(player) {
   const centerBtn = player.querySelector('.video-center-toggle');
   if (!video || !playBtn || !centerBtn) return;
 
-  const isPaused = video.paused || video.ended;
+  const isPaused = videoPlaybackIntent.has(video)
+    ? !videoPlaybackIntent.get(video)
+    : (video.paused || video.ended);
   const icon = isPaused ? '\u25B6' : '\u275A\u275A';
   playBtn.textContent = isPaused ? '▶' : '❚❚';
   playBtn.setAttribute('aria-label', isPaused ? 'Play video' : 'Pause video');
