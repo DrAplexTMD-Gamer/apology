@@ -18,6 +18,7 @@ const PAGE_FILE = path.join(ROOT, 'apology_1.html');
 const CONTENT_FILE = process.env.CONTENT_FILE || path.join(ROOT, 'content.json');
 const CODES_FILE = path.join(DATA_ROOT, 'access-codes.json');
 const STATE_FILE = path.join(DATA_ROOT, 'access-state.json');
+const ANALYTICS_FILE = path.join(DATA_ROOT, 'analytics-log.json');
 const VIDEO_BUCKET = process.env.SUPABASE_VIDEO_BUCKET || 'site-videos';
 
 const SESSION_COOKIE = 'apology_session';
@@ -116,6 +117,95 @@ async function saveContent(content) {
   );
 
   if (error) throw error;
+}
+
+async function saveAnalytics(payload) {
+  if (!supabase) {
+    // Fallback to local file
+    let existing = [];
+    try {
+      existing = JSON.parse(fs.readFileSync(ANALYTICS_FILE, 'utf8'));
+    } catch {
+      // File doesn't exist yet
+    }
+
+    // Find existing session by sessionId
+    const existingIndex = existing.findIndex(item => item.sessionId === payload.sessionId);
+
+    const sessionData = {
+      ...payload,
+      created_at: existingIndex === -1 ? new Date().toISOString() : existing[existingIndex].created_at,
+      updated_at: new Date().toISOString()
+    };
+
+    if (existingIndex !== -1) {
+      // Update existing session
+      existing[existingIndex] = sessionData;
+    } else {
+      // Add new session
+      existing.push(sessionData);
+    }
+
+    fs.writeFileSync(ANALYTICS_FILE, JSON.stringify(existing, null, 2));
+    return;
+  }
+
+  // Save to Supabase - use upsert to update existing or insert new
+  const { error } = await withTimeout(
+    supabase
+      .from('visitor_analytics')
+      .upsert({
+        session_id: payload.sessionId,
+        ip: payload.ip,
+        timestamp: payload.timestamp,
+        user_agent: payload.userAgent,
+        device: payload.device,
+        screen_res: payload.screenRes,
+        referrer: payload.referrer,
+        total_duration: payload.totalDuration,
+        page_views: payload.pageViews
+      }, {
+        onConflict: 'session_id'
+      }),
+    'Supabase analytics save'
+  );
+
+  if (error) throw error;
+}
+
+async function getAnalytics() {
+  if (!supabase) {
+    // Read from local file
+    try {
+      const data = JSON.parse(fs.readFileSync(ANALYTICS_FILE, 'utf8'));
+      return data.map(item => ({
+        session_id: item.sessionId,
+        ip: item.ip,
+        timestamp: item.timestamp,
+        device: item.device,
+        screen_res: item.screenRes,
+        referrer: item.referrer,
+        total_duration: item.totalDuration,
+        page_views: item.pageViews,
+        created_at: item.created_at
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  // Fetch from Supabase
+  const { data, error } = await withTimeout(
+    supabase
+      .from('visitor_analytics')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(1000),
+    'Supabase analytics fetch'
+  );
+
+  if (error) throw error;
+  return data || [];
 }
 
 function isVideoContentType(type) {
@@ -647,6 +737,46 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/log-analytics') {
+      try {
+        const body = await collectBody(req);
+        const payload = JSON.parse(body);
+
+        // Enrich with server-side IP
+        payload.ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+                     || req.socket.remoteAddress
+                     || 'Unknown';
+
+        await saveAnalytics(payload);
+        sendJson(res, 200, { ok: true });
+      } catch (e) {
+        console.error('Analytics log failed:', e);
+        sendJson(res, 500, { ok: false, error: publicError(e) });
+      }
+      return;
+    }
+
+    if (req.method === 'GET' && req.url.startsWith('/admin/analytics')) {
+      try {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const password = url.searchParams.get('password') || '';
+
+        // Verify password
+        if (ADMIN_PASSWORD && password !== ADMIN_PASSWORD) {
+          sendJson(res, 401, { ok: false, error: 'Invalid password' });
+          return;
+        }
+
+        // If no ADMIN_PASSWORD is set, allow access (dev mode)
+        const data = await getAnalytics();
+        sendJson(res, 200, data);
+      } catch (e) {
+        console.error('Analytics fetch failed:', e);
+        sendJson(res, 500, { ok: false, error: publicError(e) });
+      }
       return;
     }
 
