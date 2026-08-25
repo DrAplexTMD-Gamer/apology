@@ -2383,15 +2383,31 @@ function closeAnalytics() {
 
 async function fetchAnalyticsData() {
   try {
-    const password = PASS; // Use existing password constant
-    const res = await fetch(`/admin/analytics?password=${encodeURIComponent(password)}`);
+    // The secret shortcut opens analytics without another prompt. Render's
+    // ADMIN_PASSWORD must match PASS for this automatic check to succeed.
+    const res = await fetch('/admin/analytics', {
+      headers: { 'X-Admin-Password': PASS }
+    });
+
+    let responseBody = null;
+    try {
+      responseBody = await res.json();
+    } catch {
+      // The server should always return JSON; retain a useful fallback if it does not.
+    }
 
     if (!res.ok) {
-      alert('Failed to load analytics data. Check your admin password configuration.');
+      if (res.status === 401) {
+        alert('Analytics is not configured for the shortcut. In Render, set ADMIN_PASSWORD to the same value as PASS in apology_1.html, then redeploy the service.');
+      } else if (res.status === 503) {
+        alert(responseBody?.error || 'Analytics storage is unavailable. Check the Render service logs and Supabase environment variables.');
+      } else {
+        alert(responseBody?.error || 'Could not load analytics data. Check the Render service logs.');
+      }
       return;
     }
 
-    analyticsData = await res.json();
+    analyticsData = Array.isArray(responseBody) ? responseBody : [];
     renderAnalytics();
   } catch (e) {
     console.error('Analytics fetch failed:', e);

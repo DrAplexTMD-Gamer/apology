@@ -762,15 +762,28 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url.startsWith('/admin/analytics')) {
       try {
         const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-        const password = url.searchParams.get('password') || '';
+        // Keep the password out of the URL wherever possible. Query-string
+        // support is retained temporarily for existing direct API links.
+        const headerPassword = req.headers['x-admin-password'];
+        const password =
+          (Array.isArray(headerPassword) ? headerPassword[0] : headerPassword) ||
+          url.searchParams.get('password') ||
+          '';
 
         // Verify password
-        if (ADMIN_PASSWORD && password !== ADMIN_PASSWORD) {
+        if (!ADMIN_PASSWORD) {
+          sendJson(res, 503, {
+            ok: false,
+            error: 'Analytics is not configured: ADMIN_PASSWORD is missing in Render.'
+          });
+          return;
+        }
+
+        if (password !== ADMIN_PASSWORD) {
           sendJson(res, 401, { ok: false, error: 'Invalid password' });
           return;
         }
 
-        // If no ADMIN_PASSWORD is set, allow access (dev mode)
         const data = await getAnalytics();
         sendJson(res, 200, data);
       } catch (e) {
