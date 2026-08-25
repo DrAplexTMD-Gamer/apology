@@ -358,7 +358,11 @@ function serveSitePage(res) {
 
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store'
+      'Cache-Control': 'no-store',
+      // Ask Chromium browsers for the optional high-entropy client hints that
+      // let the page record a model/OS version when the browser permits it.
+      'Accept-CH': 'Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Model, Sec-CH-UA-Platform-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-Form-Factors',
+      'Permissions-Policy': 'ch-ua-high-entropy-values=(self)'
     });
 
     res.end(data);

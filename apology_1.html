@@ -2163,9 +2163,16 @@ class VisitorTracker {
     this.isTabVisible = !document.hidden;
     this.currentPageView = null;
     this.pageViews = [];
+    this.events = [];
+    this.errors = [];
+    this.webVitals = {};
+    this.furthestSlide = 0;
+    this.visitor = this.getVisitorInfo();
+    this.attribution = this.getAttribution();
     this.deviceInfo = this.parseDeviceInfo();
 
     this.init();
+    this.enrichDeviceInfo();
   }
 
   generateSessionId() {
@@ -2180,33 +2187,124 @@ class VisitorTracker {
   parseDeviceInfo() {
     const ua = navigator.userAgent || '';
 
-    // Parse OS
     let os = 'Unknown';
-    if (ua.indexOf('Windows NT 10.0') > -1) os = 'Windows 10';
-    else if (ua.indexOf('Windows NT 11.0') > -1) os = 'Windows 11';
+    let osVersion = '';
+    const android = ua.match(/Android\s([\d.]+)/i);
+    const ios = ua.match(/(?:CPU (?:iPhone )?OS|iPhone OS)\s([\d_]+)/i);
+    const mac = ua.match(/Mac OS X\s([\d_]+)/i);
+    const windows = ua.match(/Windows NT\s([\d.]+)/i);
+
+    if (windows) {
+      os = 'Windows';
+      osVersion = windows[1];
+    }
     else if (ua.indexOf('Mac OS X') > -1) os = 'macOS';
     else if (ua.indexOf('iPhone') > -1) os = 'iOS';
     else if (ua.indexOf('iPad') > -1) os = 'iPadOS';
     else if (ua.indexOf('Android') > -1) os = 'Android';
     else if (ua.indexOf('Linux') > -1) os = 'Linux';
+    if (android) osVersion = android[1];
+    if (ios) osVersion = ios[1].replace(/_/g, '.');
+    if (mac) osVersion = mac[1].replace(/_/g, '.');
 
-    // Parse Browser
     let browser = 'Unknown';
-    if (ua.indexOf('Edg/') > -1) browser = 'Edge';
-    else if (ua.indexOf('Chrome/') > -1 && ua.indexOf('Chromium') === -1) browser = 'Chrome';
-    else if (ua.indexOf('Safari/') > -1 && ua.indexOf('Chrome') === -1) browser = 'Safari';
-    else if (ua.indexOf('Firefox/') > -1) browser = 'Firefox';
-    else if (ua.indexOf('MSIE') > -1 || ua.indexOf('Trident/') > -1) browser = 'IE';
-
-    // Parse Device Type (Hardware)
-    let hardware = 'Desktop';
-    if (/Mobi/i.test(ua) || /Android/i.test(ua) || /iPhone/i.test(ua)) {
-      hardware = 'Mobile';
-    } else if (/iPad/i.test(ua) || (/Android/i.test(ua) && !/Mobi/i.test(ua))) {
-      hardware = 'Tablet';
+    let browserVersion = '';
+    const browserMatches = [
+      ['Edge', /Edg\/([\d.]+)/],
+      ['Chrome', /Chrome\/([\d.]+)/],
+      ['Firefox', /Firefox\/([\d.]+)/],
+      ['Safari', /Version\/([\d.]+).*Safari/],
+      ['IE', /(?:MSIE |rv:)([\d.]+)/]
+    ];
+    for (const [name, pattern] of browserMatches) {
+      const match = ua.match(pattern);
+      if (match) {
+        browser = name;
+        browserVersion = match[1];
+        break;
+      }
     }
 
-    return { os, browser, hardware };
+    let hardware = 'Desktop';
+    if (/iPad/i.test(ua) || (/Android/i.test(ua) && !/Mobi/i.test(ua))) {
+      hardware = 'Tablet';
+    } else if (/Mobi/i.test(ua) || /Android/i.test(ua) || /iPhone/i.test(ua)) {
+      hardware = 'Mobile';
+    }
+
+    const androidModel = ua.match(/Android[^;]*;\s*(?:[a-z]{2}-[A-Z]{2};\s*)?([^;)]+?)\s+Build\//i);
+    const model = androidModel ? androidModel[1].trim() : (/iPhone/i.test(ua) ? 'iPhone' : (/iPad/i.test(ua) ? 'iPad' : ''));
+
+    return { os, osVersion, browser, browserVersion, hardware, model };
+  }
+
+  async enrichDeviceInfo() {
+    const uaData = navigator.userAgentData;
+    if (!uaData || typeof uaData.getHighEntropyValues !== 'function') return;
+
+    try {
+      const hints = await uaData.getHighEntropyValues([
+        'architecture', 'bitness', 'formFactors', 'fullVersionList',
+        'model', 'platform', 'platformVersion'
+      ]);
+      const brand = (hints.fullVersionList || []).find(item =>
+        item.brand && !/not.?a.?brand/i.test(item.brand)
+      );
+
+      this.deviceInfo = {
+        ...this.deviceInfo,
+        os: hints.platform || this.deviceInfo.os,
+        osVersion: hints.platformVersion || this.deviceInfo.osVersion,
+        browser: brand?.brand || this.deviceInfo.browser,
+        browserVersion: brand?.version || this.deviceInfo.browserVersion,
+        model: hints.model || this.deviceInfo.model,
+        architecture: hints.architecture || '',
+        bitness: hints.bitness || '',
+        formFactors: Array.isArray(hints.formFactors) ? hints.formFactors : []
+      };
+    } catch {
+      // This information is optional and may be withheld by the browser.
+    }
+  }
+
+  getVisitorInfo() {
+    const key = 'analytics_visitor_v1';
+    const now = new Date().toISOString();
+    try {
+      const previous = JSON.parse(localStorage.getItem(key) || 'null');
+      const visitor = {
+        id: previous?.id || this.generateSessionId(),
+        firstSeen: previous?.firstSeen || now,
+        visitNumber: Number(previous?.visitNumber || 0) + 1
+      };
+      localStorage.setItem(key, JSON.stringify(visitor));
+      return { ...visitor, returning: visitor.visitNumber > 1 };
+    } catch {
+      return { id: '', firstSeen: now, visitNumber: 1, returning: false };
+    }
+  }
+
+  getAttribution() {
+    const params = new URLSearchParams(window.location.search);
+    const value = name => String(params.get(name) || '').slice(0, 160);
+    let referrer = '(direct)';
+    try {
+      if (document.referrer) {
+        const referrerUrl = new URL(document.referrer);
+        referrer = `${referrerUrl.origin}${referrerUrl.pathname}`;
+      }
+    } catch {
+      referrer = document.referrer || '(direct)';
+    }
+    return {
+      landingPage: window.location.pathname,
+      referrer,
+      utmSource: value('utm_source'),
+      utmMedium: value('utm_medium'),
+      utmCampaign: value('utm_campaign'),
+      utmTerm: value('utm_term'),
+      utmContent: value('utm_content')
+    };
   }
 
   init() {
@@ -2221,6 +2319,10 @@ class VisitorTracker {
 
     // Hook into SPA navigation
     this.hookNavigationTracking();
+    this.trackInteractions();
+    this.trackVideoEngagement();
+    this.trackErrors();
+    this.trackWebVitals();
 
     // Periodic telemetry uploads (every 20s)
     setInterval(() => this.sendAnalytics(false), 20000);
@@ -2234,6 +2336,132 @@ class VisitorTracker {
     window.addEventListener('beforeunload', handleUnload);
     window.addEventListener('pagehide', handleUnload);
     window.addEventListener('unload', handleUnload);
+  }
+
+  getEnvironment() {
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    return {
+      locale: navigator.language || '',
+      languages: Array.isArray(navigator.languages) ? navigator.languages.slice(0, 5) : [],
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+      screenResolution: `${window.screen.width}x${window.screen.height}`,
+      pixelRatio: window.devicePixelRatio || 1,
+      colorScheme: window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+      reducedMotion: Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches),
+      maxTouchPoints: navigator.maxTouchPoints || 0,
+      connection: connection ? {
+        effectiveType: connection.effectiveType || '',
+        downlinkMbps: connection.downlink || null,
+        rttMs: connection.rtt || null,
+        saveData: Boolean(connection.saveData)
+      } : null
+    };
+  }
+
+  recordEvent(name, data = {}) {
+    if (this.events.length >= 80) return;
+    this.events.push({
+      name,
+      atMs: Math.max(0, Date.now() - this.sessionStart),
+      ...data
+    });
+  }
+
+  trackInteractions() {
+    document.addEventListener('click', event => {
+      const target = event.target.closest?.('a, button, [role="button"], [data-analytics-event]');
+      if (!target || target.closest('#analytics-panel, #photo-lightbox, #pw-phase, #para-phase')) return;
+
+      const label = String(
+        target.dataset.analyticsLabel || target.dataset.analyticsEvent || target.getAttribute('aria-label') || target.id || target.tagName
+      ).slice(0, 100);
+      const details = { label };
+      if (target.tagName === 'A' && target.href) {
+        try {
+          const url = new URL(target.href, window.location.href);
+          details.destination = url.origin === window.location.origin ? url.pathname : url.origin;
+        } catch {}
+      }
+      this.recordEvent(target.tagName === 'A' ? 'link_click' : 'button_click', details);
+    });
+  }
+
+  trackVideoEngagement() {
+    const videoLabel = video => {
+      try { return new URL(video.currentSrc || video.src, window.location.href).pathname; } catch { return 'video'; }
+    };
+    document.addEventListener('play', event => {
+      if (event.target instanceof HTMLVideoElement) {
+        this.recordEvent('video_start', { video: videoLabel(event.target) });
+      }
+    }, true);
+    document.addEventListener('pause', event => {
+      if (event.target instanceof HTMLVideoElement && !event.target.ended) {
+        this.recordEvent('video_pause', { video: videoLabel(event.target), atSeconds: Math.round(event.target.currentTime || 0) });
+      }
+    }, true);
+    document.addEventListener('ended', event => {
+      if (event.target instanceof HTMLVideoElement) {
+        this.recordEvent('video_complete', { video: videoLabel(event.target) });
+      }
+    }, true);
+    document.addEventListener('timeupdate', event => {
+      const video = event.target;
+      if (!(video instanceof HTMLVideoElement) || !Number.isFinite(video.duration) || video.duration <= 0) return;
+      const progress = Math.floor((video.currentTime / video.duration) * 100);
+      const seen = video.__analyticsMilestones || (video.__analyticsMilestones = new Set());
+      [25, 50, 75].forEach(mark => {
+        if (progress >= mark && !seen.has(mark)) {
+          seen.add(mark);
+          this.recordEvent('video_progress', { video: videoLabel(video), percent: mark });
+        }
+      });
+    }, true);
+  }
+
+  trackErrors() {
+    const addError = (kind, message, source = '') => {
+      if (this.errors.length >= 20) return;
+      const safeMessage = String(message || 'Unknown error')
+        .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, '[redacted-email]')
+        .slice(0, 180);
+      this.errors.push({ kind, message: safeMessage, source: String(source || '').split('?')[0].slice(0, 180), atMs: Math.max(0, Date.now() - this.sessionStart) });
+    };
+    window.addEventListener('error', event => addError('error', event.message, event.filename));
+    window.addEventListener('unhandledrejection', event => addError('unhandledrejection', event.reason?.message || event.reason));
+  }
+
+  trackWebVitals() {
+    if (!('PerformanceObserver' in window)) return;
+    const observe = (type, callback) => {
+      try {
+        new PerformanceObserver(list => list.getEntries().forEach(callback)).observe({ type, buffered: true });
+      } catch {
+        // Unsupported metrics simply remain absent for that browser.
+      }
+    };
+    observe('largest-contentful-paint', entry => {
+      this.webVitals.lcpMs = Math.round(entry.startTime);
+    });
+    observe('layout-shift', entry => {
+      if (!entry.hadRecentInput) {
+        this.webVitals.cls = Math.round(((this.webVitals.cls || 0) + entry.value) * 1000) / 1000;
+      }
+    });
+    observe('event', entry => {
+      if (entry.duration && entry.duration > (this.webVitals.inpMs || 0)) {
+        this.webVitals.inpMs = Math.round(entry.duration);
+      }
+    });
+    window.addEventListener('load', () => {
+      const navigation = performance.getEntriesByType?.('navigation')[0];
+      if (navigation) {
+        this.webVitals.ttfbMs = Math.round(navigation.responseStart);
+        this.webVitals.domContentLoadedMs = Math.round(navigation.domContentLoadedEventEnd);
+        this.webVitals.loadMs = Math.round(navigation.loadEventEnd);
+      }
+    }, { once: true });
   }
 
   pauseTracking() {
@@ -2272,6 +2500,8 @@ class VisitorTracker {
   }
 
   startPageView(slideIndex) {
+    this.furthestSlide = Math.max(this.furthestSlide, Number(slideIndex) || 0);
+    this.recordEvent('slide_view', { slide: (Number(slideIndex) || 0) + 1 });
     this.currentPageView = {
       slideIndex,
       enteredAt: Date.now()
@@ -2329,13 +2559,32 @@ class VisitorTracker {
       this.currentPageView = null;
     }
 
+    const totalSlides = Array.isArray(data?.pages) ? data.pages.length : 0;
+    const completionPercent = totalSlides
+      ? Math.min(100, Math.round(((this.furthestSlide + 1) / totalSlides) * 100))
+      : 0;
     const payload = {
       sessionId: this.sessionId,
       timestamp: new Date(this.sessionStart).toISOString(),
       userAgent: navigator.userAgent,
-      device: this.deviceInfo,
+      device: {
+        ...this.deviceInfo,
+        environment: this.getEnvironment(),
+        visitor: this.visitor,
+        attribution: this.attribution,
+        engagement: {
+          furthestSlide: this.furthestSlide + 1,
+          totalSlides,
+          completionPercent,
+          completed: totalSlides > 0 && this.furthestSlide >= totalSlides - 1,
+          events: [...this.events]
+        },
+        webVitals: { ...this.webVitals },
+        errors: [...this.errors],
+        schemaVersion: 2
+      },
       screenRes: `${window.screen.width}x${window.screen.height}`,
-      referrer: document.referrer || '(direct)',
+      referrer: this.attribution.referrer,
       totalDuration: this.getCurrentActiveTime(),
       pageViews: [...this.pageViews]
     };
@@ -2486,8 +2735,14 @@ function renderSessionsTable() {
     const searchStr = [
       session.ip || '',
       session.device?.os || '',
+      session.device?.osVersion || '',
       session.device?.browser || '',
+      session.device?.browserVersion || '',
       session.device?.hardware || '',
+      session.device?.model || '',
+      session.device?.environment?.locale || '',
+      session.device?.attribution?.utmSource || '',
+      session.device?.attribution?.utmCampaign || '',
       session.referrer || ''
     ].join(' ').toLowerCase();
 
@@ -2514,7 +2769,11 @@ function renderSessionsTable() {
   const tbody = document.getElementById('analytics-tbody');
   tbody.innerHTML = filtered.map((session, idx) => {
     const device = session.device || {};
-    const deviceStr = `${device.hardware || 'Unknown'} • ${device.os || 'Unknown'} • ${device.browser || 'Unknown'}`;
+    const deviceStr = [
+      device.hardware || 'Unknown',
+      device.model || device.os || 'Unknown',
+      device.browser || 'Unknown'
+    ].join(' • ');
     const pageCount = (session.page_views || []).length;
 
     return `
@@ -2530,6 +2789,7 @@ function renderSessionsTable() {
         <td colspan="6">
           <div class="timeline-content">
             ${renderTimeline(session.page_views || [])}
+            ${renderSessionDetails(session)}
           </div>
         </td>
       </tr>
@@ -2554,6 +2814,48 @@ function renderTimeline(pageViews) {
       <span class="timeline-duration">${formatDuration(pv.duration || 0)}</span>
     </div>
   `).join('');
+}
+
+function renderSessionDetails(session) {
+  const device = session.device || {};
+  const environment = device.environment || {};
+  const attribution = device.attribution || {};
+  const visitor = device.visitor || {};
+  const engagement = device.engagement || {};
+  const vitals = device.webVitals || {};
+  const details = [];
+  const add = (label, value) => {
+    if (value === undefined || value === null || value === '' || value === false) return;
+    details.push(`<div><strong>${escapeHtml(label)}:</strong> ${escapeHtml(Array.isArray(value) ? value.join(', ') : String(value))}</div>`);
+  };
+
+  add('Model', device.model);
+  add('OS', [device.os, device.osVersion].filter(Boolean).join(' • '));
+  add('Browser', [device.browser, device.browserVersion].filter(Boolean).join(' • '));
+  add('Architecture', [device.architecture, device.bitness && `${device.bitness}-bit`].filter(Boolean).join(' • '));
+  add('Form factor', device.formFactors);
+  add('Locale / timezone', [environment.locale, environment.timezone].filter(Boolean).join(' • '));
+  add('Display', [environment.viewport && `viewport ${environment.viewport}`, environment.screenResolution && `screen ${environment.screenResolution}`, environment.pixelRatio && `${environment.pixelRatio}x pixel ratio`].filter(Boolean).join(' • '));
+  add('Returning visitor', visitor.id ? (visitor.returning ? `Yes (visit ${visitor.visitNumber})` : 'No (first visit)') : 'Unavailable');
+  add('Landing page', attribution.landingPage);
+  add('Campaign', [attribution.utmSource, attribution.utmMedium, attribution.utmCampaign].filter(Boolean).join(' • '));
+  add('Funnel', engagement.totalSlides ? `Reached slide ${engagement.furthestSlide}/${engagement.totalSlides} (${engagement.completionPercent || 0}%)` : 'Unavailable');
+  add('Web Vitals', [
+    vitals.lcpMs !== undefined && `LCP ${vitals.lcpMs}ms`,
+    vitals.inpMs !== undefined && `INP ${vitals.inpMs}ms`,
+    vitals.cls !== undefined && `CLS ${vitals.cls}`,
+    vitals.loadMs !== undefined && `Load ${vitals.loadMs}ms`
+  ].filter(Boolean).join(' • '));
+  if (environment.connection) add('Network', [environment.connection.effectiveType, environment.connection.downlinkMbps && `${environment.connection.downlinkMbps} Mbps`, environment.connection.saveData && 'data saver'].filter(Boolean).join(' • '));
+
+  const events = Array.isArray(engagement.events) ? engagement.events.slice(-20) : [];
+  const errors = Array.isArray(device.errors) ? device.errors : [];
+  return `
+    <div class="analytics-session-details" style="margin-top:14px;padding-top:12px;border-top:1px solid #e1d9d0;font-size:12px;line-height:1.65;color:#625a52;">
+      ${details.join('') || '<div>No enhanced analytics recorded for this session.</div>'}
+      ${events.length ? `<div style="margin-top:10px;"><strong>Recent engagement:</strong> ${events.map(event => escapeHtml(`${event.name}${event.slide ? ` (slide ${event.slide})` : ''}${event.percent ? ` (${event.percent}%)` : ''}`)).join(' • ')}</div>` : ''}
+      ${errors.length ? `<div style="margin-top:10px;color:#9b5d5d;"><strong>Errors:</strong> ${errors.map(error => escapeHtml(`${error.kind}: ${error.message}`)).join(' • ')}</div>` : ''}
+    </div>`;
 }
 
 function formatDuration(ms) {
