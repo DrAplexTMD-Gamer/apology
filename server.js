@@ -29,6 +29,9 @@ const SUPABASE_URL = (process.env.SUPABASE_URL || '').trim();
 const SUPABASE_KEY = (process.env.SUPABASE_KEY || '').trim();
 const HAS_SUPABASE_CONFIG = Boolean(SUPABASE_URL && SUPABASE_KEY);
 let supabase = null;
+// Excluded sessions are kept in memory so an initial analytics POST already in
+// flight cannot recreate a session after the admin panel removes it.
+const excludedAnalyticsSessions = new Set();
 
 if (HAS_SUPABASE_CONFIG) {
   try {
@@ -120,6 +123,10 @@ async function saveContent(content) {
 }
 
 async function saveAnalytics(payload) {
+  if (excludedAnalyticsSessions.has(payload.sessionId)) {
+    return;
+  }
+
   if (!supabase) {
     // Fallback to local file
     let existing = [];
@@ -206,6 +213,34 @@ async function getAnalytics() {
 
   if (error) throw error;
   return data || [];
+}
+
+async function excludeAnalyticsSession(sessionId) {
+  if (!sessionId || typeof sessionId !== 'string') {
+    const err = new Error('A valid analytics session ID is required.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  excludedAnalyticsSessions.add(sessionId);
+
+  if (!supabase) {
+    const existing = readJson(ANALYTICS_FILE, []);
+    if (Array.isArray(existing)) {
+      writeJson(ANALYTICS_FILE, existing.filter(item => item.sessionId !== sessionId));
+    }
+    return;
+  }
+
+  const { error } = await withTimeout(
+    supabase
+      .from('visitor_analytics')
+      .delete()
+      .eq('session_id', sessionId),
+    'Supabase analytics exclusion'
+  );
+
+  if (error) throw error;
 }
 
 function isVideoContentType(type) {
@@ -741,6 +776,32 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/admin/analytics/exclude') {
+      try {
+        const headerPassword = req.headers['x-admin-password'];
+        const password = Array.isArray(headerPassword) ? headerPassword[0] : headerPassword;
+
+        if (!ADMIN_PASSWORD) {
+          sendJson(res, 503, { ok: false, error: 'ADMIN_PASSWORD is missing in Render.' });
+          return;
+        }
+
+        if (password !== ADMIN_PASSWORD) {
+          sendJson(res, 401, { ok: false, error: 'Invalid password' });
+          return;
+        }
+
+        const body = await collectBody(req);
+        const payload = JSON.parse(body);
+        await excludeAnalyticsSession(payload.sessionId);
+        sendJson(res, 200, { ok: true });
+      } catch (e) {
+        console.error('Analytics exclusion failed:', e);
+        sendJson(res, e.statusCode || 500, { ok: false, error: publicError(e) });
+      }
       return;
     }
 

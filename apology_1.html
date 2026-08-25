@@ -2157,6 +2157,7 @@ async function saveEdit() {
 class VisitorTracker {
   constructor() {
     this.sessionId = this.generateSessionId();
+    this.isExcluded = this.isAnalyticsExcluded();
     this.sessionStart = Date.now();
     this.activeTime = 0;
     this.lastActiveTimestamp = Date.now();
@@ -2182,6 +2183,44 @@ class VisitorTracker {
       } catch(e) {}
     }
     return 'session-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+  }
+
+  isAnalyticsExcluded() {
+    const key = 'analytics_opt_out';
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('analytics') === 'on') {
+        localStorage.removeItem(key);
+        return false;
+      }
+      if (params.get('view') === 'admin_logs') {
+        localStorage.setItem(key, '1');
+        return true;
+      }
+      return localStorage.getItem(key) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  excludeFromAnalytics() {
+    if (this.isExcluded) return;
+    this.isExcluded = true;
+    this.events = [];
+    this.errors = [];
+    try {
+      localStorage.setItem('analytics_opt_out', '1');
+    } catch {}
+
+    fetch('/admin/analytics/exclude', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Password': PASS
+      },
+      body: JSON.stringify({ sessionId: this.sessionId }),
+      keepalive: true
+    }).catch(error => console.warn('Could not exclude the admin session:', error));
   }
 
   parseDeviceInfo() {
@@ -2308,6 +2347,8 @@ class VisitorTracker {
   }
 
   init() {
+    if (this.isExcluded) return;
+
     // Track visibility changes (idle/active state)
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
@@ -2537,6 +2578,8 @@ class VisitorTracker {
   }
 
   sendAnalytics(isFinal = false) {
+    if (this.isExcluded) return;
+
     // Calculate and update current page duration without ending it
     if (this.currentPageView && this.currentPageView.enteredAt) {
       const duration = Date.now() - this.currentPageView.enteredAt;
@@ -2634,6 +2677,9 @@ if (document.readyState === 'loading') {
 let analyticsData = [];
 
 function openAnalytics() {
+  // Treat the secret dashboard shortcut as an admin-only action. This removes
+  // the current record and opts this browser out of future visitor tracking.
+  visitorTracker?.excludeFromAnalytics();
   document.getElementById('analytics-panel').classList.add('open');
   fetchAnalyticsData();
 }
@@ -2905,9 +2951,9 @@ function normalizeIP(ip) {
   return ip;
 }
 
-// Secret triggers for admin panel access
+// Secret trigger for admin panel access: Ctrl + Alt + ~ / backtick.
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+  if (e.ctrlKey && e.altKey && (e.code === 'Backquote' || e.key === '`' || e.key === '~')) {
     e.preventDefault();
     openAnalytics();
   }
