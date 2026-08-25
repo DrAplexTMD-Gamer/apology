@@ -2324,6 +2324,10 @@ class VisitorTracker {
     this.trackErrors();
     this.trackWebVitals();
 
+    // Create the session as soon as the tracker starts. The periodic and final
+    // saves below enrich this same session rather than waiting 20 seconds.
+    this.sendAnalytics(false);
+
     // Periodic telemetry uploads (every 20s)
     setInterval(() => this.sendAnalytics(false), 20000);
 
@@ -2614,9 +2618,17 @@ class VisitorTracker {
 
 // Instantiate the tracker
 let visitorTracker;
-window.addEventListener('load', () => {
-  visitorTracker = new VisitorTracker();
-});
+function startVisitorTracker() {
+  if (!visitorTracker) visitorTracker = new VisitorTracker();
+}
+
+// DOMContentLoaded does not wait for images/videos, so the initial analytics
+// record is normally sent within the visitor's first second on the page.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startVisitorTracker, { once: true });
+} else {
+  startVisitorTracker();
+}
 
 // ── ANALYTICS PANEL FUNCTIONS ────────────────────────────────
 let analyticsData = [];
