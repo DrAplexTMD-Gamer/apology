@@ -12,7 +12,9 @@ const MAX_VIDEO_UPLOAD_BYTES = Number(
 );
 const SUPABASE_TIMEOUT_MS = 12000;
 
-const DATA_ROOT = '/tmp';
+// Set DATA_ROOT to a mounted persistent disk on a host that provides one.
+// /tmp is suitable only as an outage buffer on ephemeral/serverless hosts.
+const DATA_ROOT = process.env.DATA_ROOT || '/tmp';
 
 const PAGE_FILE = path.join(ROOT, 'apology_1.html');
 const CONTENT_FILE = process.env.CONTENT_FILE || path.join(ROOT, 'content.json');
@@ -43,6 +45,8 @@ if (HAS_SUPABASE_CONFIG) {
     console.error('Supabase client could not be created:', e);
   }
 }
+
+fs.mkdirSync(DATA_ROOT, { recursive: true });
 
 if (!fs.existsSync(CODES_FILE)) {
   writeJson(CODES_FILE, []);
@@ -84,135 +88,144 @@ async function withTimeout(promise, label) {
 }
 
 async function getContent() {
-  if (!supabase) {
-    return readJson(CONTENT_FILE, {});
-  }
-
-  const { data, error } = await withTimeout(
-    supabase
-      .from('site_content')
-      .select('content')
-      .eq('id', 1)
-      .single(),
-    'Supabase content load'
-  );
-
-  if (error) throw error;
-
-  writeJson(CONTENT_FILE, data.content);
-
-  return data.content;
+  // Content is deliberately local-first. This lets the letter render
+  // immediately even when Supabase is paused, rate-limited, or unavailable.
+  return readJson(CONTENT_FILE, {});
 }
 
 async function saveContent(content) {
   writeJson(CONTENT_FILE, content);
 
   if (!supabase) {
-    return;
+    return { synced: false };
   }
 
-  const { error } = await withTimeout(
-    supabase
-      .from('site_content')
-      .update({ content })
-      .eq('id', 1),
-    'Supabase content save'
-  );
+  try {
+    const { error } = await withTimeout(
+      supabase
+        .from('site_content')
+        .update({ content })
+        .eq('id', 1),
+      'Supabase content save'
+    );
 
-  if (error) throw error;
+    if (error) throw error;
+    return { synced: true };
+  } catch (error) {
+    // The on-disk version is still usable now. On an ephemeral host, deploy
+    // content.json to make a later edit survive a service restart.
+    console.error('Supabase content mirror failed:', error);
+    return { synced: false, warning: publicError(error) };
+  }
+}
+
+function readLocalAnalytics() {
+  const data = readJson(ANALYTICS_FILE, []);
+  return Array.isArray(data) ? data : [];
+}
+
+function saveLocalAnalytics(payload) {
+  const existing = readLocalAnalytics();
+  const existingIndex = existing.findIndex(item => item.sessionId === payload.sessionId);
+  const sessionData = {
+    ...payload,
+    created_at: existingIndex === -1
+      ? new Date().toISOString()
+      : existing[existingIndex].created_at,
+    updated_at: new Date().toISOString()
+  };
+
+  if (existingIndex === -1) {
+    existing.push(sessionData);
+  } else {
+    existing[existingIndex] = sessionData;
+  }
+
+  writeJson(ANALYTICS_FILE, existing);
+}
+
+function localAnalyticsForDashboard() {
+  return readLocalAnalytics().map(item => ({
+    session_id: item.sessionId,
+    ip: item.ip,
+    timestamp: item.timestamp,
+    device: item.device,
+    screen_res: item.screenRes,
+    referrer: item.referrer,
+    total_duration: item.totalDuration,
+    page_views: item.pageViews,
+    created_at: item.created_at,
+    updated_at: item.updated_at
+  }));
 }
 
 async function saveAnalytics(payload) {
   if (excludedAnalyticsSessions.has(payload.sessionId)) {
-    return;
+    return { stored: 'excluded' };
   }
+
+  // Store a local recovery copy before attempting the remote mirror.
+  // This prevents a Supabase outage from dropping analytics outright.
+  saveLocalAnalytics(payload);
 
   if (!supabase) {
-    // Fallback to local file
-    let existing = [];
-    try {
-      existing = JSON.parse(fs.readFileSync(ANALYTICS_FILE, 'utf8'));
-    } catch {
-      // File doesn't exist yet
-    }
-
-    // Find existing session by sessionId
-    const existingIndex = existing.findIndex(item => item.sessionId === payload.sessionId);
-
-    const sessionData = {
-      ...payload,
-      created_at: existingIndex === -1 ? new Date().toISOString() : existing[existingIndex].created_at,
-      updated_at: new Date().toISOString()
-    };
-
-    if (existingIndex !== -1) {
-      // Update existing session
-      existing[existingIndex] = sessionData;
-    } else {
-      // Add new session
-      existing.push(sessionData);
-    }
-
-    fs.writeFileSync(ANALYTICS_FILE, JSON.stringify(existing, null, 2));
-    return;
+    return { stored: 'local' };
   }
 
-  // Save to Supabase - use upsert to update existing or insert new
-  const { error } = await withTimeout(
-    supabase
-      .from('visitor_analytics')
-      .upsert({
-        session_id: payload.sessionId,
-        ip: payload.ip,
-        timestamp: payload.timestamp,
-        user_agent: payload.userAgent,
-        device: payload.device,
-        screen_res: payload.screenRes,
-        referrer: payload.referrer,
-        total_duration: payload.totalDuration,
-        page_views: payload.pageViews
-      }, {
-        onConflict: 'session_id'
-      }),
-    'Supabase analytics save'
-  );
+  try {
+    const { error } = await withTimeout(
+      supabase
+        .from('visitor_analytics')
+        .upsert({
+          session_id: payload.sessionId,
+          ip: payload.ip,
+          timestamp: payload.timestamp,
+          user_agent: payload.userAgent,
+          device: payload.device,
+          screen_res: payload.screenRes,
+          referrer: payload.referrer,
+          total_duration: payload.totalDuration,
+          page_views: payload.pageViews
+        }, {
+          onConflict: 'session_id'
+        }),
+      'Supabase analytics save'
+    );
 
-  if (error) throw error;
+    if (error) throw error;
+    return { stored: 'local-and-supabase' };
+  } catch (error) {
+    console.error('Supabase analytics mirror failed:', error);
+    return { stored: 'local', warning: publicError(error) };
+  }
 }
 
 async function getAnalytics() {
+  const local = localAnalyticsForDashboard();
   if (!supabase) {
-    // Read from local file
-    try {
-      const data = JSON.parse(fs.readFileSync(ANALYTICS_FILE, 'utf8'));
-      return data.map(item => ({
-        session_id: item.sessionId,
-        ip: item.ip,
-        timestamp: item.timestamp,
-        device: item.device,
-        screen_res: item.screenRes,
-        referrer: item.referrer,
-        total_duration: item.totalDuration,
-        page_views: item.pageViews,
-        created_at: item.created_at
-      }));
-    } catch {
-      return [];
-    }
+    return local;
   }
 
-  // Fetch from Supabase
-  const { data, error } = await withTimeout(
-    supabase
-      .from('visitor_analytics')
-      .select('*')
-      .order('timestamp', { ascending: false })
-      .limit(1000),
-    'Supabase analytics fetch'
-  );
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('visitor_analytics')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(1000),
+      'Supabase analytics fetch'
+    );
 
-  if (error) throw error;
-  return data || [];
+    if (error) throw error;
+
+    // Local values are the most recently received updates for this instance.
+    const sessions = new Map((data || []).map(item => [item.session_id, item]));
+    local.forEach(item => sessions.set(item.session_id, item));
+    return [...sessions.values()];
+  } catch (error) {
+    console.error('Supabase analytics load failed:', error);
+    return local;
+  }
 }
 
 async function excludeAnalyticsSession(sessionId) {
@@ -224,23 +237,25 @@ async function excludeAnalyticsSession(sessionId) {
 
   excludedAnalyticsSessions.add(sessionId);
 
+  const existing = readLocalAnalytics();
+  writeJson(ANALYTICS_FILE, existing.filter(item => item.sessionId !== sessionId));
+
   if (!supabase) {
-    const existing = readJson(ANALYTICS_FILE, []);
-    if (Array.isArray(existing)) {
-      writeJson(ANALYTICS_FILE, existing.filter(item => item.sessionId !== sessionId));
-    }
     return;
   }
 
-  const { error } = await withTimeout(
-    supabase
-      .from('visitor_analytics')
-      .delete()
-      .eq('session_id', sessionId),
-    'Supabase analytics exclusion'
-  );
-
-  if (error) throw error;
+  try {
+    const { error } = await withTimeout(
+      supabase
+        .from('visitor_analytics')
+        .delete()
+        .eq('session_id', sessionId),
+      'Supabase analytics exclusion'
+    );
+    if (error) throw error;
+  } catch (error) {
+    console.error('Supabase analytics exclusion mirror failed:', error);
+  }
 }
 
 function isVideoContentType(type) {
@@ -760,8 +775,8 @@ const server = http.createServer(async (req, res) => {
         const body = await collectBody(req);
         const parsed = JSON.parse(body);
 
-        await saveContent(parsed);
-        sendJson(res, 200, { ok: true });
+        const result = await saveContent(parsed);
+        sendJson(res, 200, { ok: true, ...result });
       } catch (e) {
         console.error('Content save failed:', e);
 
@@ -815,8 +830,8 @@ const server = http.createServer(async (req, res) => {
                      || req.socket.remoteAddress
                      || 'Unknown';
 
-        await saveAnalytics(payload);
-        sendJson(res, 200, { ok: true });
+        const result = await saveAnalytics(payload);
+        sendJson(res, 200, { ok: true, ...result });
       } catch (e) {
         console.error('Analytics log failed:', e);
         sendJson(res, 500, { ok: false, error: publicError(e) });
